@@ -7,6 +7,8 @@ import (
   //"encoding/json"
   //"strings" 
   "hyperview.in/server/core/db"
+  "hyperview.in/server/core/utils"
+  "hyperview.in/server/base"
 
   "hyperview.in/server/core/storage"
 )
@@ -16,6 +18,7 @@ const (
   TEST_DB_PASSWORD = ""
   TEST_DB_NAME = "amp_db"
   TEST_REPO_NAME = "test_repo"
+  TEST_BRANCH_NAME = "master"
   TEST_DIR = "test_dir"
 ) 
 
@@ -69,7 +72,7 @@ func Test_StartRepo(t *testing.T) {
   }
   err = api.RemoveRepo(TEST_REPO_NAME)
 
-  err = api.InitRepo(TEST_REPO_NAME)
+  _, err = api.InitRepo(TEST_REPO_NAME)
 
   if err != nil {
     fmt.Println("Start Repo Error", err)
@@ -172,3 +175,66 @@ func Test_DownloadRepo(t *testing.T) {
   fmt.Println("commit_attrs:", string(b)) 
 
 }  */
+
+
+func Test_GetOutRepo(t *testing.T) {
+  // delete test repo
+  // create test repo 
+
+  // get out repo 
+  // delete out repo 
+}
+
+func Test_GetModelRepo(t *testing.T) {
+  // delete test repo
+  db, err := utils.FakeDb()
+  test_name := TEST_REPO_NAME
+  test_branch := TEST_BRANCH_NAME
+
+  api_server, err := NewApiServer(db, nil)
+  if err != nil {
+    base.Log("[Test_GetModelRepo] Failed to create API Server: ", err)
+    t.Fatalf("Failed to create API Server")
+  }
+
+  _ = api_server.RemoveRepo(test_name)
+
+  // create test repo 
+  _, err = api_server.InitRepo(test_name)
+  if err != nil {
+    base.Log("[Test_GetModelRepo] Failed to create test repo: ", err)
+    t.Fatalf("Failed to create a test repo")
+  }
+
+  // create a commit 
+  commit_attrs, _ := api_server.InitCommit(test_name, test_branch, "")
+
+  // get model repo 
+  model_repo, err := api_server.GetOrCreateModelRepo(test_name, test_branch, commit_attrs.Commit.Id)
+  if err != nil {
+    t.Fatalf("failed to create model repo: %s", err.Error())
+  } 
+
+  model_commit, err := api_server.InitCommit(model_repo.Repo.Name, "master", "")
+  if err != nil {
+    t.Fatalf("failed to create model repo commit: %s", err.Error())
+  }
+  
+  // delete model repo 
+  if err = api_server.RemoveRepo(model_repo.Repo.Name); err != nil {
+    t.Fatalf("Failed to remove model repo")
+  }
+
+  if err = api_server.RemoveRepo(test_name); err != nil {
+    t.Fatalf("Failed to remove test repo")
+  }
+
+  if model_repo.Repo.Name == "" || model_commit.Commit.Id == "" {
+    base.Log("Failed to generate model repo / commit")
+    base.Log("[Test_GetModelRepo] Model Repo Name: ", model_repo.Repo.Name)
+    base.Log("[Test_GetModelRepo] Model Commit Id : ", model_commit.Commit.Id)
+
+    t.Fail()
+  }
+  
+}

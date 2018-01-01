@@ -29,3 +29,12 @@ type NewFlowLaunchResponse struct {
   Task *tasks.Task
   Flow *Flow
 }
+
+type FlowOutRepoRequest struct {
+}
+
+type FlowOutRepoResponse struct {
+  Repo *ws.Repo
+  Branch *ws.Branch
+  Commit *ws.Commit
+}

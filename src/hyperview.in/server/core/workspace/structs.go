@@ -22,6 +22,7 @@ type RepoType int
 const (
   STANDARD_REPO RepoType = iota
   DATASET
+  MODEL 
 )
 
 // TODO: add created, updated etc
@@ -59,6 +60,8 @@ type BranchAttrs struct {
   Head *Commit  
 }
 
+
+
 type Commit struct {
   Repo *Repo 
   Id  string 
@@ -84,7 +87,6 @@ func (ci *CommitAttrs) IsOpen() bool {
   return ci.Finished.IsZero()
 }
 
-
 type FileMap struct {
   Commit *Commit
   Entries map[string]*File
@@ -107,7 +109,7 @@ func CopyFileMap(commit *Commit, refMap FileMap) *FileMap {
   return m
 }
 
-func (fm *FileMap) size() int{
+func (fm *FileMap) Count() int{
   return len(fm.Entries)
 }
 
@@ -148,13 +150,17 @@ type FileAttrs struct {
   CheckSum string
 }
 
+func (f *FileAttrs) Size() int64{
+  return f.SizeBytes
+}
+
 type Object struct {
   Path string
   Hash string
+  Size int
+  CheckSum string
 }
-
  
-
 func NewFileAttrs(commit *Commit, filePath string, objectPath string, sizeBytes int64, checkSum string) (*FileAttrs) {
 
   object := &Object{Path: objectPath, Hash: objectPath}

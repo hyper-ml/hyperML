@@ -132,10 +132,8 @@ func (c *ApiClient) InitRepo(repoName string) error {
   resp := repo_req.Do()
   _, err := resp.Raw()
 
-  //fmt.Println("resp: ", string(b))
-
   if err != nil {
-    return fmt.Errorf("Failed while initializing repo: %s", err)
+    return fmt.Errorf("Failed while initializing repo: %s", err.Error())
   }
 
   base.Log("[InitRepo] Repo created: ", repoName)
@@ -182,7 +180,7 @@ func (c *ApiClient) CloneRepo(repoName, branchName string) (commitId string, err
 }
 
 // push code updates and then call run 
-func (c *ApiClient) RunTask(repoName string, branchName string, commitId string, cmdStr string) (openCommitId string, task_status string, fnError error) {
+func (c *ApiClient) RunTask(repoName string, branchName string, commitId string, cmdStr string) (flow_id string, openCommitId string, task_status string, fnError error) {
   var err error
   var status_str string 
   var commit_id string
@@ -192,8 +190,6 @@ func (c *ApiClient) RunTask(repoName string, branchName string, commitId string,
     base.Log("[ApiClient.RunTask] Failed to push code updates to server: ", err)
     return commit_id, status_str, err
   }
-
-  api_req := c.flowIo.Verb("POST") 
 
   task_req := flow_pkg.NewFlowLaunchRequest {
     Repo: ws.Repo {
@@ -209,6 +205,8 @@ func (c *ApiClient) RunTask(repoName string, branchName string, commitId string,
   }
 
   task_req_json, _ := json.Marshal(&task_req) 
+
+  api_req := c.flowIo.Verb("POST") 
   _ = api_req.SetBodyReader(ioutil.NopCloser(bytes.NewReader(task_req_json)))
 
   http_resp := api_req.Do()
@@ -217,10 +215,10 @@ func (c *ApiClient) RunTask(repoName string, branchName string, commitId string,
   task_resp :=  flow_pkg.NewFlowLaunchResponse{}
   err = json.Unmarshal(api_resp, &task_resp)
   status_str = task_resp.TaskStatusStr
-  fmt.Println("response: ", status_str, task_resp.Flow)
+  //fmt.Println("response: ", status_str, task_resp.Flow)
   base.Log("[RunTask] Flow Id: ", task_resp.Flow.Id)
 
-  return commit_id, status_str, err
+  return task_resp.Flow.Id, commit_id, status_str, err
 }
  
 
@@ -257,7 +255,7 @@ func (c *ApiClient) pushCode(repoName, branchName, commitId, fullFilePath string
       
       wrt_len, err := w.Write(buf[:read_len])
 
-      upld_size := upld_size + int64(wrt_len)
+      upld_size = upld_size + int64(wrt_len)
 
       if err != nil {
         return upld_size, err
@@ -341,12 +339,11 @@ func (c *ApiClient) pushCodeUpdates(repoName, branchName, commitId string) error
 }
 
 
-// Need branch here?
 // should compare file sizes and decide to move or not ?
 // Push always pushes to the head of commit graph on branch
-// 
-func (c *ApiClient) PushRepo(repoName, branchName, commitId string) (string, error) {
-  var open_commit_id string 
+// TODO: check upload size and push only changed
+func (c *ApiClient) PushRepo(repoName, branchName, commitId string) (*ws.Commit, error) {
+  var commit *Commit 
   var err error  
 
   commit_cli, err := rest_client.NewRESTClient(c.ServerAddr, c.config.CommitUriPath, http.DefaultClient)
@@ -356,28 +353,26 @@ func (c *ApiClient) PushRepo(repoName, branchName, commitId string) (string, err
   commit_req.Param("branchName", branchName)
   commit_req.Param("commitId", commitId)
 
-  base.Debug("[ApiClient.PushRepo] Commit Url: ", commit_req.URL())
   commit_resp := commit_req.Do()
   commit_data, err := commit_resp.Raw()
 
   // commit ID validated
   if err != nil {
     base.Log("[ApiClient.PushRepo] Failed to retrieve an open repo commit: ", err)
-    return open_commit_id, err
+    return commit, err
   }
 
   commit_attrs := &ws.CommitAttrs{}
   err = json.Unmarshal(commit_data, &commit_attrs)
-
-  open_commit_id = commit_attrs.Commit.Id
+  commit = commit_attrs.Commit 
 
   // got an open commit, now push code 
-  err =  c.pushCodeUpdates(repoName, branchName, open_commit_id)
+  err =  c.pushCodeUpdates(repoName, branchName, commit.Id)
   if err != nil {
     return "", err
   }
 
-  return open_commit_id, nil
+  return commit, nil
 }
  
 
@@ -396,6 +391,6 @@ func (c *ApiClient) PutObjectWriter(repoName string, branchName string, commitId
   return hw, nil
 }
 
-
+// pull task results out folder
 
 

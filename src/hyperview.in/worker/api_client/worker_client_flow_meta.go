@@ -6,7 +6,8 @@ import(
   "hyperview.in/server/base"
   "io/ioutil"
   flw "hyperview.in/server/core/flow" 
-  
+  ws "hyperview.in/server/core/workspace"
+
 ) 
 
 
@@ -42,3 +43,19 @@ func (w *WorkerClient) UpdateTaskStatus(workerId string, taskId string, tsr *flw
 
 }
 
+
+func (wc *WorkerClient) GetFlowOutRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  req := wc.FlowAttrs.VerbSp("GET", flowId + "/" + "out_repo")
+
+  resp := req.Do()
+  body, err := resp.Raw()
+  if err != nil {
+    return nil, nil, nil, err
+  }
+
+  out_response := &flw.FlowOutRepoResponse{}
+  err = json.Unmarshal(body, out_response)
+  
+  base.Debug("[WorkerClient.GetFlowOutRepo] Output Repo for flow: ", out_response.Repo.Name)  
+  return out_response.Repo, out_response.Branch, out_response.Commit, nil
+}

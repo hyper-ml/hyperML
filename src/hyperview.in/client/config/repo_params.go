@@ -112,7 +112,11 @@ func WriteRepoParams(working_dir string, key string, value string) error {
 
 func ReadRepoParams(working_dir string, key string) (value string, err error) {
   v, _ := GetRepoConfig(working_dir)
-  //base.Log("repo_id: " , v.Get(key))
+
+  if v == nil {
+    return "", nil
+  }
+
   vi := v.Get(key)
   return vi.(string), nil
 }

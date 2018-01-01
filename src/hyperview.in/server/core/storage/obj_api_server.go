@@ -4,7 +4,8 @@ import (
   "fmt"
   "io"
   "strings"
-  "io/ioutil" 
+  "io/ioutil"  
+
   "path/filepath"
   "golang.org/x/net/context"
 
@@ -19,6 +20,9 @@ var (
 
 
 type ObjectAPIServer interface {
+  BasePath() string
+  GetObjectPath(subpath string) string
+
   Reader(path string, offset int64, size int64) (io.ReadCloser,error)
   ReadSeeker(path string, offset int64, size int64) (io.ReadSeeker, error)
   Writer(path string) (io.WriteCloser, error) 
@@ -89,6 +93,14 @@ func newGoogleBucketAPIServer(bucket string, dir string, cacheBytes int64) (*obj
   return newObjectAPIServer(dir, storageClient, cacheBytes)
 }
 
+func (s *objAPIServer) BasePath() string {
+  return s.dir
+}
+
+func (s *objAPIServer) GetObjectPath(subpath string) string {
+  return filepath.Join(s.dir, subpath)
+}
+
 
 func (s *objAPIServer) objDir(path string) string {
   return filepath.Join(s.dir, path)
@@ -118,6 +130,7 @@ func (s *objAPIServer) Reader(path string, offset int64, size int64) (io.ReadClo
 
 func  (s *objAPIServer) ReadSeeker(fpath string, offset int64, size int64) (io.ReadSeeker, error) {
   var object_size int64
+  base.Info("[objApiServer.ReadSeeker] file path: ", fpath)
 
   reader, err := s.Reader(fpath, offset, size)
   
@@ -141,6 +154,7 @@ func  (s *objAPIServer) ReadSeeker(fpath string, offset int64, size int64) (io.R
 }
 func (s *objAPIServer) CreateObject(parentDir string, fileReader io.Reader, inchunks bool) (obj_path string, chksm string, written int64, retErr error) {
   obj_hash := utils.NewUUID()
+  base.Debug("[objApiServer.CreateObject] obj_hash: ", obj_hash)
   return s.SaveObject(obj_hash, parentDir, fileReader, inchunks)
 }
   
@@ -148,7 +162,8 @@ func (s *objAPIServer) CreateObject(parentDir string, fileReader io.Reader, inch
 // TODO: add cancel with context
 //
 func (s *objAPIServer) SaveObject(objName string, parentDir string, fileReader io.Reader, inchunks bool) (obj_path string, chksm string, written int64, retErr error) {
-	var err error 
+	base.Info("[objApiServer.SaveObject] objName, parentDir: ", objName, parentDir )
+  var err error 
 
   cksum_hash := utils.NewHash()
 

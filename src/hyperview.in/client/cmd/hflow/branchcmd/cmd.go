@@ -57,7 +57,7 @@ func BranchCommand() *cobra.Command {
   var branch_name string
   var err error 
   branch_cmd := &cobra.Command{
-    Use: "checkout",
+    Use: "experiment",
     Short: "code checkout experiments ",
     Long: `code checkout experiments `, 
     Run: func(cmd *cobra.Command, args []string) {
@@ -76,7 +76,7 @@ func BranchCommand() *cobra.Command {
 
     },
   }
-  branch_cmd.Flags().StringVarP(&branch_name, "branch", "b", "", "new branch name")
+  branch_cmd.Flags().StringVarP(&branch_name, "new-branch", "n", "", "new branch name")
 
   return branch_cmd
 }

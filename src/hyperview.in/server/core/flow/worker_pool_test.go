@@ -4,13 +4,16 @@ package flow_test
 import(
   "fmt"
   "testing"
+  "hyperview.in/server/core/utils"
+
   .  "hyperview.in/server/core/flow"
 )
 
 
 
 func Test_WatchWorker(t *testing.T) {
-  pk := NewWorkerPool()
+  db, _:= utils.FakeDb()
+  pk := NewWorkerPool(db)
   w_chan := NewWorkPoolWatcher()
 
   go pk.Watch(w_chan)

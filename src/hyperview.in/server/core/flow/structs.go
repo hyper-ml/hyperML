@@ -4,7 +4,7 @@ import (
   "time"
   "sync"
   . "hyperview.in/server/core/tasks"
-  
+  "hyperview.in/server/base"
 )
 
 type FlowStatus int
@@ -16,12 +16,12 @@ const (
   STARTED
   WAITING
   RUNNING
+  COMPLETING
+  CANCELLING  
+  STOPPING
   FAILED
   STOPPED
-  STOPPING
-  COMPLETING
   COMPLETED
-  CANCELLING
   CANCELLED
 )
   
@@ -83,6 +83,24 @@ func NewFlowAttrs(fc *FlowConfig) *FlowAttrs {
     Created: time.Now(),
     Tasks: make(map[string]TaskAttrs),
   }
+}
+
+func (f *FlowAttrs) isComplete() bool {
+
+  if f.Status >= FAILED {
+    return true
+  }
+
+  if len(f.Tasks) > 0 {
+    for _, t := range f.Tasks {
+      base.Debug("[FlowAttrs.isComplete] task status: ", t.Status)
+      if t.Status >= TASK_FAILED {
+        return true
+      } 
+    }
+  } 
+
+  return false 
 }
 
 func (f *FlowAttrs) AddTask(taskConfig *TaskConfig) *TaskAttrs{

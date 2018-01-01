@@ -7,6 +7,8 @@ import (
   "path/filepath"
 
   "github.com/spf13/cobra"
+  
+  //"hyperview.in/server/base"
 
   client "hyperview.in/client"
   "hyperview.in/client/config"
@@ -21,6 +23,10 @@ func exitWithError(format string, args ...interface{}) {
   os.Exit(1)
 }
 
+func hasWhiteSpace(s string) bool{
+  return strings.ContainsAny(s, " ")
+}
+
 const (
 	concurrency = 10
 )
@@ -33,9 +39,9 @@ func RepoCommands() []*cobra.Command {
 
   repo_cmd := &cobra.Command{
     Use: "repo",
-    Short: "List details of current repo",
+    Short: "Repo command Usage",
     //TODO: add command details
-    Long: `List details of current repo`, 
+    Long: `Repo command Usage`, 
     Run: func(cmd *cobra.Command, args []string) {
       cmd.Usage()
     },
@@ -47,6 +53,14 @@ func RepoCommands() []*cobra.Command {
     //TODO: add command details
     Long: `Initializes a new repo. Name is mandatory parameter.`, 
     Run: func(cmd *cobra.Command, args []string) {      
+      if len(args) == 0 {
+        exitWithError("Repo name is mandatory. \nformat: hflow init <<repo_name>>")
+      }  
+
+      repo_name = args[0]
+      if len(args) > 1 || hasWhiteSpace(repo_name) {
+        exitWithError("Repo name can not have spaces")
+      }
       current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
       r, _ := config.ReadRepoParams(current_dir, "REPO_NAME")
@@ -62,8 +76,7 @@ func RepoCommands() []*cobra.Command {
       }
 
       _ = config.WriteRepoParams(current_dir, "REPO_NAME", repo_name)
-
-      // TODO: ideally pick branch from the server response 
+      // assumption: repo always starts with a master branch
       _ = config.WriteRepoParams(current_dir, "BRANCH_NAME", "master")
 
     },
@@ -93,8 +106,8 @@ func RepoCommands() []*cobra.Command {
     Run: func(cmd *cobra.Command, args []string) {
 
       current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
       fmt.Println("directory: ", current_dir)
+
       repo_name, _  = config.ReadRepoParams(current_dir, "REPO_NAME")
       branch_name, _  = config.ReadRepoParams(current_dir, "BRANCH_NAME")
       curr_commit_id, _  = config.ReadRepoParams(current_dir, "COMMIT_ID")
@@ -104,12 +117,12 @@ func RepoCommands() []*cobra.Command {
       }
   
       c, _ := client.NewApiClient(current_dir)
-      new_commit, err := c.PushRepo(repo_name, branch_name, curr_commit_id)
+      commit, err := c.PushRepo(repo_name, branch_name, curr_commit_id)
       if err != nil { 
         exitWithError(err.Error())
       }
 
-      _ = config.WriteRepoParams(current_dir, "COMMIT_ID", new_commit)
+      _ = config.WriteRepoParams(current_dir, "COMMIT_ID", commit.Id)
     },
   }
 

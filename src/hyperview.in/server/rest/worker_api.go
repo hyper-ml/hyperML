@@ -16,7 +16,6 @@ import (
 //These are worker specific API functions
 
 func (h *Handler) handleUpdateTaskStatus() error {
-  base.Debug("[Handler.handleUpdateTaskStatus]")      
   if (h.rq.Method != "PATCH") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
@@ -27,10 +26,14 @@ func (h *Handler) handleUpdateTaskStatus() error {
   var err error
 
   worker_id, _ := h.getMandatoryUrlParam("workerId")
-  
   base.Debug("[Handler.handleUpdateTaskStatus] worker Id: ", worker_id)  
+
   if worker_id == "" {
-    return base.HTTPErrorf(http.StatusInternalServerError, "Invalid worker Id %s")
+    return base.HTTPErrorf(http.StatusBadRequest, "No worker Id")
+  }
+
+  if h.rq.Body == nil {
+    return base.HTTPErrorf(http.StatusBadRequest, "Empty status change request")
   }
 
   // read parameters
@@ -44,13 +47,15 @@ func (h *Handler) handleUpdateTaskStatus() error {
     return err
   }
   
+  base.Log("[Handler.handleUpdateTaskStatus] New Status: ", change_req.TaskStatus)
+
   // call internal API
   worker := flow_pkg.Worker {Id: worker_id} 
   change_resp, err := h.server.flowServer.UpdateWorkerTaskStatus(worker, &change_req)
 
   if err != nil {
-    base.Log("[Handler.UpdateFlowTaskStatus] Failed task update: ", change_req)
-    base.Log("[Handler.UpdateFlowTaskStatus] ", err)
+    base.Log("[Handler.handleUpdateTaskStatus] Failed task update: ", change_req)
+    base.Log("[Handler.handleUpdateTaskStatus] ", err)
     return err 
   }
 

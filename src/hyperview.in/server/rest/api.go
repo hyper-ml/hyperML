@@ -170,17 +170,13 @@ func (h *Handler) handleGetRepoAttrs() error {
   repo_attrs, err := h.server.workspaceApi.GetRepoAttrs(repoName)
 
 
-  fmt.Println("repo_attrs:", repo_attrs)
-  
+   
   if err == nil {
-    response = map[string]interface{}{
-      "repo_attrs": repo_attrs, 
-    }
+    response = structs.Map(repo_attrs)
   } else {
     return err
   }
 
-  fmt.Println("response on handleGetRepoAttrs: ", response)
   h.writeJSON(response)
 
   return nil

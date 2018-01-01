@@ -14,6 +14,9 @@ import(
   "hyperview.in/server/core/db"
 )
 
+const (
+  defaultBranch = "master"
+)
 
 type commitTxn struct {
   repoName string
@@ -29,9 +32,14 @@ func NewCommitTxn(repoName string, branchName string, commitId string, db *db.Da
 
   q:= NewQueryServer(db)
 
-  if branch_name == "" {
-    return nil, fmt.Errorf("Invalid branch: %s", branch_name)
-  }
+  if branch_name == "" { 
+    if commitId == "" { 
+      return nil, fmt.Errorf("Invalid branch: %s", branch_name)
+    } else {
+      base.Info("[NewCommitTxn] Defaulting branch: ", defaultBranch)
+      branch_name = defaultBranch
+    }
+  } 
 
   txn := &commitTxn {
     repoName: repoName,
@@ -134,7 +142,7 @@ func (ct *commitTxn) Init() (*CommitAttrs, error) {
     head_cinfo, err = ct.q.GetCommitAttrsById(repo_name, branch_attr.Head.Id)
       
     if head_cinfo.IsOpen() {
-        base.Log("There is a pending commit against this repo", head_cinfo)
+        base.Log("There is a pending commit against this repo. Picking the same")
         ct.setCommitAttrs(head_cinfo)
         return head_cinfo, nil
     }
@@ -211,15 +219,12 @@ func (ct *commitTxn) addFileMap(commit *Commit, parent *Commit) (error) {
       }
     }
   }
-  fmt.Println("insert file map:", fm)
 
   return ct.q.InsertFileMap(ct.repoName, commit.Id, fm)
 }
 
 func (ct *commitTxn) addCommit(parent *Commit) (*CommitAttrs, error) {
   
-  fmt.Println("adding file map", parent)
-
   var commit_attrs *CommitAttrs
   var err error
   

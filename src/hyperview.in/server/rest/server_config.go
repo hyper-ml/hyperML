@@ -40,8 +40,7 @@ func (config *ServerConfig) Serve(addr string, Handler http.Handler) {
 func ParseCommandLine() {
   addr := flag.String("interface", DefaultInterface, "Address to bind to")
   adminAddr := flag.String("adminInterface", DefaultAdminInterface, "Address to bind admin interface to")
-  
-
+   
   flag.Parse()
 
   dbConfig := &DatabaseConfig{
@@ -61,7 +60,7 @@ func ParseCommandLine() {
 func RunServer(config *ServerConfig) {
   sc := NewServerContext(config)
 
-  base.LogInfo("Starting server on %s ...", *config.Interface)
+  base.Info("Starting server on %s ...", *config.Interface)
   config.Serve(*config.Interface, CreatePublicHandler(sc))
 }
 

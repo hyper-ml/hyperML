@@ -5,6 +5,10 @@ import (
   "fmt"
 )
 
+func errRepoNameExists(name string) error {
+  return fmt.Errorf("repo_name_exists: %s", name)
+}
+
 func errInvalidRepoName(name string) error{
   return fmt.Errorf("invalid_repo_name: %s", name)
 }

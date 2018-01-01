@@ -1,17 +1,13 @@
 package api_client
 
 import (
-  "io"
-  "fmt"
-  "strconv"
-  "bytes"
+  "io" 
+  "strconv" 
   "io/ioutil"
   "encoding/json"
-
-  "hyperview.in/worker/rest_client"
+ 
   ws "hyperview.in/server/core/workspace"
-  "hyperview.in/server/base" 
-  local_schema "hyperview.in/worker/schema"
+  "hyperview.in/server/base"  
 )
  
 func (wc *WorkerClient) ListDir(reponame string, commitId string, path string) (map[string]*ws.FileAttrs, error) {
@@ -116,66 +112,14 @@ func (wc *WorkerClient) GetFileObject(repoName string, commitId string, fpath st
 
 }
 
-// add mutex to synchronize writes   
-type httpWriter struct {
-  r *rest_client.Request
-  object_hash string
-}
-
-func (h *httpWriter) setHash(hash string) {
-  h.object_hash = hash 
-}
-
-// TODO: Write at will be better. But figure it out later
-//
-func (h *httpWriter) Write(p []byte) (n int, err error) {
- 
-  h.r.Param("size", strconv.Itoa(len(p)))
-  h.r.Param("hash", h.object_hash)
-
-  _ = h.r.SetBodyReader(ioutil.NopCloser(bytes.NewReader(p)))
-
-  resp := h.r.Do()
-
-  if resp.Error()!= nil {
-    base.Log("Encountered an error while writing object to server: ", h.object_hash, err)
-    _= h.r.PrintParams()
-    return 0, err
-  } 
-
-  pfr := local_schema.PutFileResponse{}
-  err = json.Unmarshal(resp.Body(), &pfr)
-
-  if err != nil {
-    base.Log("Invalid response from server for PutFileResponse:", err)
-    return 0, err
-  }
-
-  if pfr.Error != "" {
-    return 0, fmt.Errorf(pfr.Error)
-  }
-
-  if pfr.FileAttrs.Object != nil {   
-    base.Debug("Received File Info. Caching object hash with writer for future use: ", pfr.FileAttrs.Object.Hash)
-    h.setHash(pfr.FileAttrs.Object.Hash) 
-  } 
-
-  return int(pfr.Written), nil
-}
-
-func (h *httpWriter) Close() error {
-  // Close body here?  
-  return nil
-}
- 
-
-func (wc *WorkerClient) PutObjectWriter(repoName string, commitId string, fpath string) (io.WriteCloser, error) {
+func (wc *WorkerClient) PutFileWriter(repoName string, commitId string, fpath string) (io.WriteCloser, error) {
   r := wc.vfs.VerbSp("PUT", "put_file")
   r.Param("repoName", repoName)
   r.Param("commitId", commitId)
   r.Param("path", fpath)
+  base.Info("[WorkerClient.PutFileWriter] put_file Url: ", r.URL())
   
-  hw := &httpWriter {
+  hw := &httpFileWriter {
     r: r,
   }  
 

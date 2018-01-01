@@ -13,23 +13,29 @@ import (
 
 type ApiServer interface { 
   InitRepo(name string) (*RepoAttrs, error)
+  CheckRepoExists(name string) bool
   InitBranch(repoName, branchName, head string) (*BranchAttrs, error)
 
-  InitCommit(repoName, branchName string) (*CommitAttrs, error)
+  InitCommit(repoName, branchName, commitId string) (*CommitAttrs, error)
   StartCommit(repoName, branchName string) (string, error)
   EndCommit(repoName string, branchName string, commitId string) (error)
   
+  GetOrCreateModelRepo(repoName, branchName, commitId string) (*RepoAttrs, error)
+
   GetRepoAttrs(repoName string) (*RepoAttrs, error) 
   GetBranchAttrs(repoName string, branchName string) (*BranchAttrs, error)
   GetCommitAttrs(repoName string, commitId string) (*CommitAttrs, error) 
   GetCommitMap(repoName string, commitId string) (*FileMap, error) 
-  
   GetFileAttrs(repoName string, commitId string, filePath string) (*FileAttrs, error)
+  
+  GetCommitSize(repoName, branchName, commitId string) (int64, error) 
+  GetBranchSize(repoName, branchName string) (int64, error)
+
   DownloadRepo(repoName, branchName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error)
 
   PutFile(repoName string, branchName string, commitId string, fpath string, reader io.Reader) (*FileAttrs, int64, error)
 
-  CreateDataset(name string) error 
+  CreateDataset(name string) (*RepoAttrs, error) 
   //CreateTask(config *task_pkg.TaskConfig) (*task_pkg.Task, error)
 }
 
@@ -56,12 +62,26 @@ func NewApiServer(db *db_pkg.DatabaseContext, oapi storage.ObjectAPIServer) (*ap
   }, nil
 }
 
+func (a *apiServer) CheckRepoExists(name string) bool {
+  return a.q.CheckRepoExists(name)
+}
 
 func (a *apiServer) InitRepo(name string) (*RepoAttrs, error) {
+  return a.InitTypedRepo(STANDARD_REPO, name)
+}
+
+func (a *apiServer) InitTypedRepo(repoType RepoType, name string) (*RepoAttrs, error) {
   //TODO: auth, validate repo name
   master_branch:= "master"
   repo_name := name
+  repo_type := repoType
+
   var err error 
+
+  if a.q.CheckRepoExists(repo_name) {
+    base.Debug("[apiServer.InitRepo] Repo already exists: ", repo_name)
+    return nil, errRepoNameExists(repo_name)
+  }
 
   new_repo := &Repo {
       Name: repo_name,
@@ -81,13 +101,14 @@ func (a *apiServer) InitRepo(name string) (*RepoAttrs, error) {
   }
   
   repo_attrs.Description = "New Repo"
-  repo_attrs.Type = STANDARD_REPO
+  repo_attrs.Type = repo_type
+
   repo_attrs.AddBranch(new_branch)
 
   err = a.q.InsertRepoAttrs(repo_name, repo_attrs)
   if err != nil {
     base.Log("[apiServer.InitRepo] Failed to create repo: ", err)
-    _ = a.q.DeleteBranch(repo_name, master_branch)
+    _ = a.q.DeleteBranchAttrs(repo_name, master_branch)
     return nil, err
   } 
 
@@ -123,17 +144,35 @@ func ( a *apiServer) InitBranch(repoName, branchName, headCommitId string) (*Bra
 
 // TODO: handle errors and add validations
 func (a *apiServer) RemoveRepo(name string) error {
-  err := a.q.DeleteRepoAttrs(name)
-  // TODO: delete branches, commits etc
-  return err
+  // loop through repo branches and delete 
+  repo_attrs, err := a.GetRepo(name)
+  if err != nil {
+    return err 
+  }
+  if repo_attrs.Repo.Name != "" {
+    if len(repo_attrs.Branches) > 0 {
+      for branch_name, _ := range repo_attrs.Branches {
+        err := a.q.DeleteBranchAttrs(repo_attrs.Repo.Name, branch_name)
+        if err != nil {
+          return err
+        }
+      }
+    }
+    err := a.q.DeleteRepoAttrs(name)
+    if err != nil {
+      return err
+    }
+  }
+
+  return nil
 }
 
 func (a *apiServer) GetRepo(name string) (*RepoAttrs, error) {
   return a.q.GetRepoAttrs(name)
 }
  
-func (a *apiServer) InitCommit(repoName, branchName string) (*CommitAttrs, error) {
-  var commit_id string
+func (a *apiServer) InitCommit(repoName, branchName, commitId string) (*CommitAttrs, error) {
+  var commit_id string = commitId
   ct, err := NewCommitTxn(repoName, branchName, commit_id, a.db)
   if err != nil {
     return nil, err
@@ -305,7 +344,70 @@ func (a *apiServer) DownloadRepo(repoName, branchName string) (*RepoAttrs, *Bran
 
 }
 
+func (a *apiServer) CreateModelRepo(srcRepoName, srcBranchName, srcCommitId string) (*RepoAttrs, error) {
+  repo_name := getModelRepoName(srcRepoName, srcCommitId)
+  repo_attrs, err:= a.InitTypedRepo(MODEL, repo_name)
+  if err != nil {
+    base.Log("[FlowServer.CreateModelRepo] Failed to create model repo: ", err)
+    return nil, err
+  }
 
+  return repo_attrs, nil
+}
+
+func (a *apiServer) GetModelRepo(srcRepoName, srcBranchName, srcCommitId string) (*RepoAttrs, error) {
+  repo_name := getModelRepoName(srcRepoName, srcCommitId)
+  repo_attrs, _ := a.GetRepoAttrs(repo_name)
+
+  return repo_attrs, nil
+}
+
+
+func getModelRepoName(srcRepoName, srcCommitID string) string {
+  return "repo/" + srcRepoName + "/commit/" + srcCommitID + "/model"
+}
+ 
+func (a *apiServer) GetOrCreateModelRepo(srcRepoName, srcBranchName, srcCommitId string) (*RepoAttrs, error) {
+  if !a.CheckRepoExists(getModelRepoName(srcRepoName, srcCommitId)) {
+    return a.CreateModelRepo(srcRepoName, srcBranchName, srcCommitId)
+  } 
+  
+  return a.GetModelRepo(srcRepoName, srcBranchName, srcCommitId)
+}
+
+// returns size of head commit in branch
+func (a *apiServer) GetBranchSize(repoName, branchName string) (int64, error) {
+  var size int64
+  branch_attrs, _ := a.q.GetBranchAttrs(repoName, branchName)
+  if branch_attrs.Head.Id == "" {
+    return size, nil
+  } 
+
+  return a.GetCommitSize(repoName, branchName, branch_attrs.Head.Id)
+}
+
+func (a *apiServer) GetCommitSize(repoName, branchName, commitId string) (int64, error) {
+  var size int64
+  var retErr error
+  file_map, _ := a.q.GetFileMap(repoName, commitId)
+
+  if len(file_map.Entries) == 0 {
+    return size, nil
+  }
+
+  for name, _ := range file_map.Entries {
+    f_attrs, err := a.q.GetFileAttrs(repoName, commitId, name)
+    if err != nil {
+      base.Debug("[apiServer.GetCommitSize] Failed to find size of file: ", repoName, commitId, name)
+      retErr = err
+      continue
+    }
+    size = size + f_attrs.Size()
+  }
+
+  base.Info("[apiServer.GetSize] Size of Repo: ", size, repoName, branchName, commitId)
+  return size, retErr
+}
 
 
 

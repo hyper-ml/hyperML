@@ -20,12 +20,20 @@ import (
 
 const (
   DefaultFileOpLimit = 5
+  DefaultWsPerm os.FileMode = 0775
+
+  DefaultModelPath = "/saved_models"
+  DefaultModelPerm os.FileMode = 0775
+
   DefaultOutPath = "/out"
   DefaultOutPerm os.FileMode = 0775
+
+  UserPath = "/wh_data"
 )
  
 type RepoFs struct {
   repo *ws.Repo
+  branch *ws.Branch
   commit *ws.Commit
   basePath string
   concurrency int
@@ -34,7 +42,7 @@ type RepoFs struct {
 }
 
 
-func NewRepoFs(basePath string, concurrency int, repoName string, commitId string, wc *api_client.WorkerClient) *RepoFs {
+func NewRepoFs(basePath string, concurrency int, repoName string, branchName string, commitId string, wc *api_client.WorkerClient) *RepoFs {
   
   var conc_limit int = DefaultFileOpLimit
 
@@ -47,6 +55,9 @@ func NewRepoFs(basePath string, concurrency int, repoName string, commitId strin
     repo: &ws.Repo {
         Name: repoName,
       },
+    branch: &ws.Branch {
+      Name: branchName,
+    },
     commit: &ws.Commit {
         Id: commitId,
       },
@@ -158,12 +169,18 @@ func (fs *RepoFs) pullCommitMap() error {
 
 func (fs *RepoFs) Mount() error {
 
+  if err := fs.createWorkSpaceDir(); err != nil {
+    base.Log("[RepoFs.Mount] Failed to create workspae dir: ", err)
+    return err
+  }   
+  
   // fetch commit file map
   if err := fs.pullCommitMap(); err != nil {
       base.Log("[RepoFs.Mount] Failed to pull commit map for repo commit:", fs.repo.Name, fs.commit.Id)
       base.Log(err.Error())
       return err
     }
+
   
   if repo_size, err := fs.mountRepo(); err != nil {
       base.Log("[RepoFs.Mount] Failed to mount repo on local filesystem:", fs.repo.Name, fs.commit.Id)
@@ -176,8 +193,12 @@ func (fs *RepoFs) Mount() error {
   if err := fs.createOutDir(); err != nil {
     base.Log("[RepoFs.Mount] Failed to create out dir: ", err)
     return err
-  }  
+  }   
 
+  if err := fs.createSavedModelsDir(); err != nil {
+    base.Log("[RepoFs.Mount] Failed to create saved_model dir: ", err)
+    return err
+  } 
   return nil 
 }
 
@@ -229,14 +250,38 @@ func (fs *RepoFs) Writer(path string) (io.WriteCloser, error) {
   return f, nil
 }
 
-func (fs *RepoFs) createOutDir() error {
-  outPath := filepath_pkg.Join(fs.basePath, DefaultOutPath)
+func (fs *RepoFs) createWorkSpaceDir() error {
+  workspace_dir := fs.basePath 
+  if err := os.MkdirAll(workspace_dir, DefaultWsPerm); err != nil {
+    base.Log("[RepoFs.createWorkSpaceDir] Failed to create workspace directory: ", err)
+    return err
+  }
+  base.Debug("[RepoFs.createWorkSpaceDir] Workspace directory path: ", workspace_dir)
+  return nil
+}
 
+func (fs *RepoFs) createOutDir() error {
+  outPath := filepath_pkg.Join(UserPath, DefaultOutPath)
+  base.Log("[repoFs.createOutDir] outPath: ", outPath)
+  
   if err := os.MkdirAll(outPath, DefaultOutPerm); err != nil {
     base.Log("[RepoFs.createOutDir] Failed to create out directory: ", err)
     return err
   }
   base.Debug("[RepoFs.createOutDir] Output directory path: ", outPath)
+  return nil
+}
+
+
+func (fs *RepoFs) createSavedModelsDir() error {
+  modelPath := filepath_pkg.Join(UserPath, DefaultModelPath)
+  base.Log("[repoFs.createSavedModelsDir] modelPath: ", modelPath)
+  
+  if err := os.MkdirAll(modelPath, DefaultModelPerm); err != nil {
+    base.Log("[RepoFs.createSavedModelsDir] Failed to create model directory: ", err)
+    return err
+  }
+  base.Debug("[RepoFs.createSavedModelsDir] Model directory path: ", modelPath)
   return nil
 }
 
@@ -257,7 +302,7 @@ func (fs *RepoFs) PushObject(rel_path string) (int64, error) {
   defer utils.PutBuffer(buf)
 
   //TODO: add this inside loop to send or add multi part writer 
-  w, err := fs.workerClient.PutObjectWriter(fs.repo.Name, fs.commit.Id, file_path)
+  w, err := fs.workerClient.PutFileWriter(fs.repo.Name, fs.commit.Id, file_path)
   defer w.Close()
 
   for {
@@ -284,47 +329,61 @@ func (fs *RepoFs) PushObject(rel_path string) (int64, error) {
 
 }
 
+func (fs *RepoFs) PushModelDir() (size int64, fnError error) {
+  return fs.PushDir("")
+}
+
 // Description: Upload files from out directory to commit map
 func (fs *RepoFs) PushOutputDir() (size int64, fnError error) {
+  return fs.PushDir("")
+}
+
+func (fs *RepoFs) PushDir(subpath string) (size int64, fnError error) {
   var upload_size uint64
+  var skip_base_path bool = true
 
   repo_path := fs.basePath
-  outPath := filepath_pkg.Join(fs.basePath, DefaultOutPath)
-
+  push_path := fs.basePath
+  
+  if subpath != "" {
+    push_path = filepath_pkg.Join(fs.basePath, subpath)
+  }
+  
   var eg errgroup.Group
 
-  if err:= filepath_pkg.Walk(outPath, func(current_path string, file_osinfo os.FileInfo, err error) error {
-      base.Debug("[RepoFs.PushOutputDir] Found File in outpath: ", current_path)
+  if err:= filepath_pkg.Walk(push_path, func(current_path string, file_osinfo os.FileInfo, err error) error {
+      // TODO: skip base path
+      /*if (current_path == push_path) && skip_base_path {
+        return nil
+      }*/
+
+      base.Debug("[RepoFs.PushDir] Found File in outpath: ", current_path)
       // ignore symlinks for this release 
 
       if err != nil {
-        base.Log("[RepoFs.PushOutputDir] Error reading file info from os. ")
+        base.Log("[RepoFs.PushDir] Error reading file info from os. ")
         return err
       }
 
       eg.Go(func() (upldError error){
           
-          if current_path == outPath {
-            base.Log("[RepoFs.PushOutputDir] Current path and Output path are same. Skipping.. ")
-            return nil
-          }
 
           // derive path relative to workspace directory 
           // as this will be updated in commit map
           relative_path, err := filepath_pkg.Rel(repo_path, current_path)
           if err != nil {
-            base.Log("[RepoFs.PushOutputDir] Failed to find relative path of current path to repo :", current_path, repo_path)
-            base.Log("[RepoFs.PushOutputDir] ", err)
+            base.Log("[RepoFs.PushDir] Failed to find relative path of current path to repo :", current_path, repo_path)
+            base.Log("[RepoFs.PushDir] ", err)
             return err 
           }
 
           if (file_osinfo.Mode() & file_osinfo.Mode() > os.ModeNamedPipe) {
-            base.Log("[RepoFs.PushOutputDir] Found Named pipe. Skipping.. ", current_path)
+            base.Log("[RepoFs.PushDir] Found Named pipe. Skipping.. ", current_path)
             return nil
           }
 
           if (file_osinfo.Mode() & file_osinfo.Mode() > os.ModeSymlink) {
-            base.Log("[RepoFs.PushOutputDir] Found Named Symlink. Skipping.. ", current_path)
+            base.Log("[RepoFs.PushDir] Found Named Symlink. Skipping.. ", current_path)
             return nil
           }
 
@@ -341,7 +400,7 @@ func (fs *RepoFs) PushOutputDir() (size int64, fnError error) {
 
       return nil
     }); err != nil {
-    base.Log("[RepoFs.PushOutputDir] Failed to walk through out directory. ", err)
+    base.Log("[RepoFs.PushDir] Failed to walk through out directory. ", err)
   }
   fnError = eg.Wait()
   size = int64(upload_size)

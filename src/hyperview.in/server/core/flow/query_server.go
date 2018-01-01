@@ -23,23 +23,7 @@ func NewQueryServer(db *db_pkg.DatabaseContext) *queryServer {
     db: db,
   }
 }
-
-func InvalidTaskError(taskId string) error{
-  return fmt.Errorf("invalid_task: This task does not exist in curernt flow. Invalid Task Id: %s", taskId)
-}
-
-func InvalidTaskStatusError() error{
-  return fmt.Errorf("invalid_status_error: This task is already complete with status Success or failed")
-}
-
-func InvalidWorkerFlowCombo() error {
-  return fmt.Errorf("invalid_worker_flow_combo: Invalid worker-flow-task combination. ")
-}
-
-func InvalidFlowId() error {
-  return fmt.Errorf("invalid_flow_id: Flow Id is either missing or invalid")
-}
-
+ 
 
 func (qs *queryServer) flowKey(Id string) string {
   return "flow:" + Id
@@ -252,6 +236,14 @@ func (qs *queryServer) GetWorkerAttrs(workerId string) (*WorkerAttrs, error) {
 //register worker
 func (qs *queryServer) registerW(flowId string, taskId string, ipAddress string) (*WorkerAttrs, error) {
   
+  if taskId == "" {
+    return nil, InvalidTaskId()
+  }
+
+  if flowId == "" {
+    return nil, InvalidTaskId()
+  }
+
   // check if a worker already exists agains this task
   // current flow task worker record
 

@@ -21,8 +21,8 @@ func setEnv(){
 // complete pod task
 
 func Test_AssignWorker(t *testing.T) {
-  pk := NewDefaultPodKeeper()
   db, _:= utils.FakeDb()
+  pk := NewDefaultPodKeeper(db)
   qs := NewQueryServer(db)
  
   FlowAttrs, _:= dummyFlow(qs)
@@ -62,12 +62,25 @@ func Test_ReleaseWorker(t *testing.T) {
 }*/
 
 
+func Test_SavePodWithDeployId(t *testing.T) {
+  setEnv()
+  db, _:= utils.FakeDb()
+
+  pk := NewDefaultPodKeeper(db)
+  err:= pk.SaveWorkerLog(Worker{}, Flow{Id: "af84fdf93b5741568e8dfb413d3c3047"})
+  fmt.Println("err: ", err)
+  if err != nil {
+    t.Fatalf("Failure: %s", err)
+  }
+}
 
 func Test_GetPodLog(t *testing.T) {
   setEnv()
-  pk := NewDefaultPodKeeper()
+  db, _:= utils.FakeDb()
+
+  pk := NewDefaultPodKeeper(db)
   w := Worker { PodId: "e23dfa1225fc40249d4915d8b6f52b6f-86bc799555-bc8vs" }
   f := Flow { Id: "e23dfa1225fc40249d4915d8b6f52b6f" }
-  _, err := pk.SaveWorkerLog(w, f)
+  err := pk.SaveWorkerLog(w, f)
   fmt.Println("error: ", err)
 }

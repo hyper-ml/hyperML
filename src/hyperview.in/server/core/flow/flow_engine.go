@@ -15,7 +15,7 @@ import (
 
 type FlowEngine interface{
   StartFlow(flowId, taskId string) (task_pkg.TaskStatus, error)
-  LaunchFlow(repoName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error)
+  LaunchFlow(repoName string, branchName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error)
 }
 
 
@@ -57,6 +57,7 @@ func InvalidFlowParamsError(flowId string) error {
   return fmt.Errorf("[flowEngine] Invalid flow parameter: %s", flowId)
 }
 
+ 
 // monitor new messages from the worker pod or update on flow status
 // end pods or mark flow completion 
 
@@ -74,20 +75,29 @@ func (fe *flowEngine) master(quit chan int) {
   for {
     select {
       case evtval, ok := <- event_chan:
-        base.Debug("[flowEngine.master] Received an event: ", &evtval)
+        base.Debug("[flowEngine.master] Received flow change status event: ", evtval)
         if !ok {
           return
         }
 
-        flowAttrs, ok := evtval.(*FlowAttrs)
+        flow_attrs, ok := evtval.(*FlowAttrs)
         
         if !ok {
           base.Log("[flowEngine.master] Oops not a flow record")
           break
         } 
 
-        base.Debug("[flowEngine.master] Flow Record: ", flowAttrs.Flow.Id)
-      
+        base.Debug("[flowEngine.master] Changed Flow Status and Id: ", flow_attrs.Status, flow_attrs.Flow.Id)
+        
+        
+
+        // stop worker if flow is completed with success or error 
+        if flow_attrs.isComplete() {
+          base.Info("[flowEngine.master] Releasing worker as flow status > 11")
+          _ = fe.wpool.SaveWorkerLog(Worker{}, flow_attrs.Flow)
+          _ = fe.wpool.ReleaseWorker(flow_attrs.Flow)
+        }
+
       case w_evt, ok := <- w_chan: 
         base.Debug("[flowEngine.master] Received kube event: ", w_evt.Type) 
         if !ok {
@@ -227,10 +237,10 @@ func (fe *flowEngine) workerCleanUp(flow Flow) error {
 }
 
 // create flow with a single task
-func (fe *flowEngine) createSimpleFlow(repoName string, commitId string, cmdString string) (*FlowAttrs, error) {
+func (fe *flowEngine) createSimpleFlow(repoName string, branchName string, commitId string, cmdString string) (*FlowAttrs, error) {
   wdir := "/workspace"
  
-  mount_map := task_pkg.NewMountConfig(repoName, commitId, wdir, 0)
+  mount_map := task_pkg.NewMountConfig(repoName, branchName, commitId, wdir, 0)
   flow_config := &FlowConfig{
     MountMap: mount_map,
   }
@@ -250,11 +260,11 @@ func (fe *flowEngine) createSimpleFlow(repoName string, commitId string, cmdStri
 }
 
 
-func (fe *flowEngine) LaunchFlow(repoName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error) {
+func (fe *flowEngine) LaunchFlow(repoName string, branchName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error) {
   // 1. create a new flow - task
   // 2. start flow 
 
-  flow_attrs, _ := fe.createSimpleFlow(repoName, commitId, cmdString)
+  flow_attrs, _ := fe.createSimpleFlow(repoName, branchName, commitId, cmdString)
   
   var task_id string
   for _, task_attrs := range flow_attrs.Tasks {

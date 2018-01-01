@@ -10,49 +10,49 @@ type LoggerConfig struct {
 
 type LogKey uint64
 
-const DefaultLogLevel = 0
+const LogLevel int = 0
+const defaultLevel int = 4
 
 const (
-  infoLevel = iota
-  debugLevel
+  InfoLevel = iota
+  DebugLevel
   WarnLevel
-  errorLevel
+  ErrorLevel
 )
 
+
+
 func Log(format string, args ...interface{}) {
-  logTo(DefaultLogLevel, 0, format, args)
+  logTo(LogLevel, LogKey(defaultLevel), format, args)
 }
 
 
 func Info(format string, args ...interface{}) {
-  logTo(DefaultLogLevel, 2, format, args)
+  logTo(LogLevel, InfoLevel, format, args)
 }
 
 func Warn(format string, args ...interface{}) {
-  logTo(DefaultLogLevel, 2, format, args)
+  logTo(LogLevel, WarnLevel, format, args)
 }
 
 
 func Error(format string, args ...interface{}) {
-  logTo(DefaultLogLevel, 2, format, args)
+  logTo(LogLevel, ErrorLevel, format, args)
 }
 
 
 func Debug(format string, args ...interface{}) {
-  logTo(DefaultLogLevel, 1, format, args)
+  logTo(LogLevel, DebugLevel, format, args)
 }
 
+func Out(format string, args ...interface{}) {
+  logTo(LogLevel, InfoLevel, format, args)
+}
+  
 
-// TODO: log levels and writing to file
-func LogInfo(format string, args ...interface{}) {
-  logTo(infoLevel, 0, format, args)
+func logTo(logLevel int, logKey LogKey, format string, args ...interface{}) {
+  if int(logKey) >= int(logLevel) {
+    fmt.Println(format, args)
+  }
 }
 
-func logTo(logLevel LogLevel, logKey LogKey, format string, args ...interface{}) {
-  fmt.Println(format, args)
-}
-
-
-func Errorf(format string, args ...interface{}) {
-  fmt.Errorf(format, args)
-}

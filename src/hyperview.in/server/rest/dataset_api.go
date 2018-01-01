@@ -16,7 +16,7 @@ func (h *Handler) handlePostDataSet() error {
   repoName := h.getQuery("repoName")
   
   //TODO: handle error
-  err := h.server.workspaceApi.CreateDataset(repoName)
+  _, err := h.server.workspaceApi.CreateDataset(repoName)
   if err != nil {
     response = map[string]interface{}{
         "status": "Failed to create dataset" + err.Error(),

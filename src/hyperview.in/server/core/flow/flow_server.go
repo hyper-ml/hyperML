@@ -8,7 +8,7 @@ import (
   "hyperview.in/server/core/storage"
   tasks_pkg "hyperview.in/server/core/tasks"
   db_pkg "hyperview.in/server/core/db"
-
+  ws "hyperview.in/server/core/workspace"
 ) 
 
 type FlowServer struct {
@@ -16,16 +16,21 @@ type FlowServer struct {
   fe FlowEngine	
   qs *queryServer
   obj storage.ObjectAPIServer 
+  wsapi ws.ApiServer
   ns string
   quit chan int
 }
 
-func NewFlowServer(db *db_pkg.DatabaseContext, kubens string, obj storage.ObjectAPIServer) *FlowServer {
+func NewFlowServer(db *db_pkg.DatabaseContext, 
+  kubens string, 
+  obj storage.ObjectAPIServer,
+  wsapi ws.ApiServer) *FlowServer {
     
   qs:= NewQueryServer(db)
-  fe:= NewFlowEngine(qs, db)
+  fe:= NewFlowEngine(qs, db) 
+  
   quit:= make(chan int)
-
+  
   go fe.master(quit)
     
   fs := &FlowServer {
@@ -35,6 +40,7 @@ func NewFlowServer(db *db_pkg.DatabaseContext, kubens string, obj storage.Object
     fe: fe,
     quit: quit,
     obj: obj,
+    wsapi: wsapi,
   }
 
   return fs
@@ -50,7 +56,7 @@ func errorCompletedTask() error{
 }
 
 func errInvalidWorkerForTask(workerId string) error {
-  return fmt.Errorf("Invalid worker for this task:", workerId)
+  return fmt.Errorf("Invalid worker for this task: %s", workerId)
 }
 
 func (fs *FlowServer) GetFlowAttr(flowId string) (*FlowAttrs, error) {
@@ -84,7 +90,7 @@ func (fs *FlowServer) LaunchFlow(flr NewFlowLaunchRequest) (NewFlowLaunchRespons
 
   resp:= NewFlowLaunchResponse{}
 
-  flow, task_status, err := fs.fe.LaunchFlow(flr.Repo.Name, flr.Commit.Id, flr.CmdString)
+  flow, task_status, err := fs.fe.LaunchFlow(flr.Repo.Name, flr.Branch.Name, flr.Commit.Id, flr.CmdString)
   if err != nil {
     resp.TaskStatus = tasks_pkg.TASK_FAILED
     return resp, err
@@ -166,11 +172,46 @@ func (fs *FlowServer) updateTaskStatus(flowId string, taskId string, newStatus t
 }*/
 
 func (fs *FlowServer) GetFlowLogPath(flowId string) string {
-  return  "logs/flow/" + flowId + ".log"
+  return  "logs/flows/" + flowId + ".log"
+}
+
+
+func (fs *FlowServer) GetTaskLogPath(taskId string) string {
+  return  "task_logs/" + taskId + ".log"
 }
 
 func (fs *FlowServer) GetTaskLog(flowId string) ([]byte, int, error) {
   //fs.obj.
   file_name := fs.GetFlowLogPath(flowId)
   return fs.obj.GetObject(file_name, 0, 0)
+}
+
+func getOutRepoName(flow_id string) string {
+  return "flow/" + flow_id + "/out"
+}
+
+func (fs *FlowServer) createOutRepo(flow Flow) (*ws.RepoAttrs, error) {
+  repo_name:= getOutRepoName(flow.Id) 
+  repo_attrs, err:= fs.wsapi.InitRepo(repo_name)
+  if err != nil {
+    base.Log("[FlowServer.createOutRepo] Failed to create output repo: ", err)
+    return nil, err
+  }
+
+  return repo_attrs, nil
+}
+
+func (fs *FlowServer) getOutRepo(flow Flow) (*ws.RepoAttrs) {
+  repo_name := getOutRepoName(flow.Id)
+  repo_attrs, _ := fs.wsapi.GetRepoAttrs(repo_name)
+
+  return repo_attrs
+}
+
+func (fs *FlowServer) GetOrCreateOutRepo(flow Flow) (*ws.RepoAttrs, error) {
+  if !fs.wsapi.CheckRepoExists(getOutRepoName(flow.Id)) {
+    return fs.createOutRepo(flow)
+  } 
+  
+  return fs.getOutRepo(flow), nil
 }

@@ -8,7 +8,7 @@ import (
   "net/url" 
   "encoding/json"
   //"strconv"
-  //"io"
+  "io"
   //"bytes" 
   //"io/ioutil"
 
@@ -69,6 +69,8 @@ type WorkerClient struct {
   // Virtual FS Client 
   vfs rest_client.Interface
 
+  BaseUrl *url.URL
+  Config *config.Config
   //TODO: add stats 
 }
 
@@ -148,6 +150,8 @@ func NewWorkerClient(serverAddr string) (*WorkerClient, error) {
     TaskAttrs: task_attrs,
     WorkerAttrs: worker_attrs,
     CommitMap: commit_map,
+    BaseUrl: server_addr,
+    Config: c,
     //TaskStatus: task_status,
   }, nil
 
@@ -281,3 +285,40 @@ func (wc *WorkerClient) DetachWorker(flowId string, taskId string, workerId stri
   
   return nil
 }
+
+func (wc *WorkerClient) GetModelRepo(srcRepoName, srcBranch, srcCommitId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  path:= srcRepoName + "/branch/" + srcBranch + "/commit/"+ srcCommitId +"/model_repo"
+  req := wc.RepoAttrs.VerbSp("GET", path)
+
+  base.Info("[WorkerClient.GetModelRepo] Model Repo creation url: ", req.URL())
+  resp := req.Do()
+  body, err := resp.Raw()
+  if err != nil {
+    return nil, nil, nil, err
+  }
+
+  model_response := &ws.ModelRepoResponse{}
+  err = json.Unmarshal(body, model_response)
+  
+  base.Debug("[WorkerClient.GetModelRepo] Model Repo for Repo: ", model_response.Repo.Name)  
+  return model_response.Repo, model_response.Branch, model_response.Commit, nil
+
+}
+
+
+func (wc *WorkerClient) PostLogWriter(taskId string) (io.WriteCloser, error) { 
+  client, _ := rest_client.NewRESTClient(wc.BaseUrl, wc.Config.TasksUriPath, http.DefaultClient)
+
+  r := client.VerbSp("POST", "/" + taskId + "/log")
+  base.Info("[WorkerClient.PostLogWriter] log url:",  r.URL())
+
+  hw := &httpObjectWriter {
+    r: r,
+  }  
+
+  return hw, nil
+
+}
+
+
+

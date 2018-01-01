@@ -9,6 +9,7 @@ import (
   "hyperview.in/worker/utils/env_util"
 
   "hyperview.in/worker"
+  "hyperview.in/worker/rest_server"
 ) 
 
 
@@ -23,6 +24,7 @@ type workerEnv struct {
   FlowId string `env:"FLOW_ID"`
   TaskId string `env:"TASK_ID"`
   WorkingDir string `env:"WORKSPACE_DIR" envDefault:"/workspace"`
+  HomeDir string `env:"HOME_DIR" envDefault:"/var/tmp"`
 
 }
 
@@ -34,6 +36,7 @@ func main() {
     base.Log("[whWorker.main] Failed to parse : ", err)
     cmdError(err)
   }
+
   var api_server_addr string
 
   if wenv.ApiServerIp != "" && wenv.ApiServerPort != "" {
@@ -42,38 +45,46 @@ func main() {
   
   if  wenv.ServerAddr != "" {
     api_server_addr = wenv.ServerAddr
-  }
-
-
-  base.Log("[whWorker.main] Environment vars: ", wenv)
-  
-  wh := worker.NewWorkHorse(api_server_addr, wenv.FlowId, wenv.TaskId, wenv.WorkerIp, wenv.WorkingDir)
-  err = wh.Init()
-  
-  if err != nil {
+  } 
+ 
+  go func() {
+    base.Log("[whWorker.main] Environment vars: ", wenv)
     
-    if strings.Contains(err.Error(), "Invalid task status") {
-      base.Log("[main] Skipping task as it is already complete.")
-      os.Exit(0)
+    wh := worker.NewWorkHorse(nil, api_server_addr, wenv.HomeDir, wenv.FlowId, wenv.TaskId, wenv.WorkerIp, wenv.WorkingDir)
+    err = wh.Init()
+    
+    if err != nil {
+      
+      if strings.Contains(err.Error(), "Invalid task status") {
+        base.Log("[main] Skipping task as it is already complete.")
+        //!os.Exit(0)
+        return
+      }
+
+      base.Debug("[main] Worker Initialization Error: ", err)
+      //!os.Exit(0)   
+      return
+      //cmdError(err)
+    }
+    
+    // TODO: Add backoff here
+    err = wh.DoWork()
+    if err != nil {
+      base.Debug("[main] Worker Failed doing work. Error: ", err)
+      //cmdError(err)    
     }
 
-    base.Debug("[main] Worker Initialization Error: ", err)
-    cmdError(err)
-  }
+    err = wh.Shutdown()
 
-  // TODO: Add backoff here
-  err = wh.DoWork()
-  if err != nil {
-    base.Debug("[main] Worker Failed doing work. Error: ", err)
-    cmdError(err)    
-  }
-
-  err = wh.Shutdown()
-
-  if err != nil {
-    base.Debug("[main] Worker Failed during shutdown. Error: ", err)
-    cmdError(err)    
-  }  
+    if err != nil {
+      base.Debug("[main] Worker Failed during shutdown. Error: ", err)
+      //cmdError(err)    
+    }  
+    //!os.Exit(0)
+    return
+  }()
+  base.Info("[whWorker.main] Launching worker server: ")
+  rest_server.WorkerServer()
 
 }
 

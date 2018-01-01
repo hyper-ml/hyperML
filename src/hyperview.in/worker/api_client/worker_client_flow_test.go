@@ -31,9 +31,17 @@ func Test_UpdateTaskStatus(t *testing.T) {
     Task: tsk_pkg.Task {
       Id: TEST_TASK_ID,
     },
-    TaskStatus: tsk_pkg.TASK_STARTED,
+    TaskStatus: tsk_pkg.TASK_INITIATED,
   }
 
-  _, err = wc.UpdateTaskStatus("f2da9c8a26bf4b9d9f274cf185395dc3", tsr)
+  _, err = wc.UpdateTaskStatus("", "f2da9c8a26bf4b9d9f274cf185395dc3", tsr)
   onError(t, err)
+}
+
+func Test_GetFlowOutRepo(t *testing.T) {
+  wc, err := NewWorkerClient("")
+  onError(t, err)
+
+  _, _, _, _ = wc.GetFlowOutRepo(TEST_FLOW_ID)
+
 }

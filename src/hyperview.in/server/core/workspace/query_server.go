@@ -102,10 +102,11 @@ func (q *queryServer) UpdateBranchAttrs(repoName string, branchName string, bran
 }
 
 
-func (q *queryServer) DeleteBranch(repoName, branchName string) error {
+func (q *queryServer) DeleteBranchAttrs(repoName, branchName string) error {
   branch_key:=  q.getBranchKey(repoName, branchName)
   return q.db.Delete(branch_key)  
 }
+
 
 /******************************/
 /*****  Commit Operations ******/
@@ -210,7 +211,6 @@ func (q *queryServer) GetFileMap(repoName string, commitId string) (*FileMap, er
 
 func (q *queryServer) InsertFileMap(repoName string, commitId string, fmapInfo *FileMap) error {
   map_key := q.getFileMapKey(repoName, commitId)
-  fmt.Println("map info", fmapInfo)
   return q.db.Insert(map_key, fmapInfo)
 }
 

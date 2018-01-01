@@ -13,7 +13,7 @@ func dummyRec() (*FlowAttrs, *tsk_pkg.TaskAttrs) {
   cmd:= "who"
   wdir:= "/workspace"
   
-  mmap := tsk_pkg.NewMountConfig("test_repo", "7759ff96ae2046bbbf89de9bf14ab381", "/workspace", 0)
+  mmap := tsk_pkg.NewMountConfig("test_repo", "7759ff96ae2046bbbf89de9bf14ab381", "/workspace", "", 0)
 
   flow_config := &FlowConfig{
     MountMap: mmap,

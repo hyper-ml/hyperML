@@ -16,6 +16,11 @@ const (
 // details of mount file system
 // this is usually tied to a repo or commit key
 type MountConfig struct {
+  //repo
+  RepoName string
+
+  //branch 
+  BranchName string
 
   // commit ID for file map
   CommitId string
@@ -30,7 +35,7 @@ type MountConfig struct {
 
 type MountMap map[string]MountConfig
 
-func NewMountConfig(repoName string, commitId string, targetPath string, mountType int) MountMap{
+func NewMountConfig(repoName string, branchName string, commitId string, targetPath string, mountType int) MountMap{
   m_type := MOUNT_TYPE_DEFAULT
   if mountType != 0 {
     m_type = mountType
@@ -38,7 +43,7 @@ func NewMountConfig(repoName string, commitId string, targetPath string, mountTy
   
   var mmap map[string]MountConfig
   mmap = make(map[string]MountConfig)
-  mmap[repoName] = MountConfig{Target: targetPath, MountType: m_type, CommitId: commitId} 
+  mmap[repoName] = MountConfig{Target: targetPath, MountType: m_type, RepoName: repoName, BranchName: branchName, CommitId: commitId} 
   return mmap
 }
 
@@ -78,41 +83,68 @@ func NewTaskConfig(cmd string, cargs []string, wdir string, mmap MountMap) *Task
 
 type TaskStatus int
 const (
-  TASK_CREATED TaskStatus = iota
-  TASK_WAITINGTOSTART
-  TASK_STARTING 
-  TASK_ASSIGNED
-  TASK_ACCEPTED
-  TASK_INITIATED
-  TASK_CONFIGURED
-  TASK_WAITING
-  TASK_FAILED
-  TASK_STOPPING
-  TASK_STOPPED
-  TASK_RUNNING 
-  TASK_COMPLETING
-  TASK_COMPLETED
-  TASK_CANCELLING
-  TASK_CANCELLED
+  TASK_CREATED TaskStatus = 0
+  TASK_WAITINGTOSTART TaskStatus = 10
+  TASK_STARTING TaskStatus = 20
+  TASK_ASSIGNED TaskStatus = 30
+  TASK_ACCEPTED TaskStatus = 40
+  TASK_INITIATED TaskStatus = 50
+  TASK_CONFIGURED TaskStatus = 60
+  TASK_WAITING TaskStatus = 70
+  TASK_RUNNING TaskStatus = 80
+   
+
+  CMD_COMPLETE TaskStatus = 90
+  CMD_FAILED  TaskStatus = 100
+  CMD_WARNING  TaskStatus = 110
+  LOG_UPLOAD_FAILED  TaskStatus = 120
+  LOG_UPLOAD_COMPLETE  TaskStatus = 130
+  MODEL_UPLOAD_COMPLETE TaskStatus = 140
+  MODEL_UPLOAD_FAILED TaskStatus = 150
+  OUTPUT_UPLOAD_COMPLETE TaskStatus = 160
+  OUTPUT_UPLOAD_FAILED TaskStatus = 170
+  TASK_COMPLETING TaskStatus = 180
+  TASK_STOPPING TaskStatus = 190
+  TASK_CANCELLING TaskStatus = 200
+  TASK_FAILED TaskStatus = 300
+  TASK_STOPPED TaskStatus = 310
+  TASK_COMPLETED TaskStatus = 320
+  TASK_WARNING TaskStatus = 330
+  TASK_CANCELLED TaskStatus = 340
 )
 
 var TaskStatusKey = map[int]string {
-  0: "TASK_CREATED",
-  1: "TASK_WAITINGTOSTART",
-  2: "TASK_STARTING",
-  3: "TASK_ASSIGNED",
-  4: "TASK_ACCEPTED",
-  5: "TASK_INITIATED",
-  6: "TASK_CONFIGURED",
-  7: "TASK_WAITING",
-  8: "TASK_FAILED",
-  9: "TASK_STOPPING",
-  10: "TASK_STOPPED",
-  11: "TASK_RUNNING",
-  12: "TASK_COMPLETING",
-  13: "TASK_COMPLETED",
-  14: "TASK_CANCELLING",
-  15: "TASK_CANCELLED",
+   0: "TASK_CREATED",
+  10: "TASK_WAITINGTOSTART",
+  20: "TASK_STARTING",
+  30: "TASK_ASSIGNED" ,
+  40: "TASK_ACCEPTED" ,
+  50: "TASK_INITIATED"  ,
+  60: "TASK_CONFIGURED" ,
+  70: "TASK_WAITING"  ,
+  80: "TASK_RUNNING"  ,
+
+  90: "CMD_COMPLETE",
+  100: "CMD_FAILED",
+  110: "CMD_WARNING",
+  
+  120: "LOG_UPLOAD_FAILED",
+  130: "LOG_UPLOAD_COMPLETE",
+  
+  140: "MODEL_UPLOAD_COMPLETE",
+  150: "MODEL_UPLOAD_FAILED",
+  
+  160: "OUTPUT_UPLOAD_COMPLETE",
+  170: "OUTPUT_UPLOAD_FAILED",
+  
+  180: "TASK_COMPLETING",
+  190: "TASK_STOPPING",
+  200: "TASK_CANCELLING",
+  300: "TASK_FAILED",
+  310: "TASK_STOPPED",
+  320: "TASK_COMPLETED",
+  330: "TASK_WARNING",
+  340: "TASK_CANCELLED",
 }
 
 func TaskStatusByKey(key TaskStatus) string {

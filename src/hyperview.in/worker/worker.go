@@ -4,7 +4,9 @@ import (
   "fmt"
   "time"
   "context"
-
+  "io"  
+  "io/ioutil"
+  "path/filepath"
   "hyperview.in/server/base"
   flw "hyperview.in/server/core/flow"
   tsk "hyperview.in/server/core/tasks"
@@ -18,8 +20,18 @@ import (
 
 const (
   FileOpsConcurrency int = 5
+  DefaultOutPath = "/out"
+  DefaultModelPath = "/saved_models"
+  UserVolume = "/wh_data" 
+
+  DefaultWorkSpacePerm = 0755
+  DefaultModelPerm = 0755
+  DefaultOutPerm = 0755
+  
   IgnoreEmptyTask bool = true
   IgnoreMountError bool = true
+  DefaultHomeDir = "/wh_data"
+
 )
 
 
@@ -32,12 +44,16 @@ type WorkHorse struct {
   flowAttrs *flw.FlowAttrs
   taskAttrs *tsk.TaskAttrs
 
+  homeDir string 
   workingDir string
-  repoFs *fsys.RepoFs
   workerIp string
 
+  repoFs *fsys.RepoFs
+  outFs *fsys.RepoFs
+  modelFs *fsys.RepoFs
+
   tasks map[string]*tsk.TaskAttrs
-  tlogs map[string]utils.Logger
+  tlogs map[string]utils.LoggerInterface
   
   // TODO: add task environments
 
@@ -48,28 +64,46 @@ type WorkHorse struct {
 }
 
 func emptyTaskError(flowId, taskId string) error {
-  return fmt.Errorf("The task is empty: %s %s", flowId, taskId)
+  return fmt.Errorf("empty_task: The task is empty: %s %s", flowId, taskId)
 }
 
 func InvalidFlowTaskError() error {
-  return fmt.Errorf("Empty Flow or task assigned to the worker")
+  return fmt.Errorf("empty_task_flow_ids: Empty Flow or task assigned to the worker")
 }
 
 func InvalidFlowTaskStatus(status tsk.TaskStatus) error {
-  return fmt.Errorf("Invalid Status (%d) for running the task. Check docs for valid statuses. ", int(status))
+  return fmt.Errorf("invalid_status: Invalid Status (%d) for running the task. Check docs for valid statuses. ", int(status))
+}
+
+func errTaskHasFailures() error {
+  return fmt.Errorf("task_has_failures: This task has failures.")
 }
 
 //
-func NewWorkHorse(serverAddr string, flowId string, taskId string, workerIp string, workingDir string) *WorkHorse {
-  wc, _ := NewWorkerClient(serverAddr)
+func NewWorkHorse(client *WorkerClient, serverAddr string, homeDir string, flowId string, taskId string, workerIp string, workingDir string) *WorkHorse {
+  wc := client
+  home_dir := homeDir
+  if home_dir == "" {
+    home_dir = DefaultHomeDir
+  }
+
+  if wc == nil {
+    wc, _ = NewWorkerClient(serverAddr)
+  }
+
   tasks := make(map[string]*tsk.TaskAttrs) 
-  tlogs := make(map[string]utils.Logger) 
+  tlogs := make(map[string]utils.LoggerInterface) 
+  
+  if taskId != "" { 
+    tlogs[taskId]  = utils.NewTaskLogger(home_dir, taskId)
+  }  
 
   return &WorkHorse {
     flowId: flowId,
     taskId: taskId,
     workerIp: workerIp,
     workingDir: workingDir,
+    homeDir: home_dir,
 
     wc: wc,
     tasks: tasks,
@@ -100,11 +134,45 @@ func (w *WorkHorse) Init() error {
     base.Log("[WorkHorse.Init] Failed to update task status to accepted: ", w.flowId, w.taskId, err)
     return err
   }
+  
+  if err := w.createDirs(); err != nil {
+    base.Error("[WorkHorse.Init] Failed to create workspace directories: ", err)
+    return err
+  }
 
   if err := w.MountVolumes(); err != nil {
     base.Log("[WorkHorse.Init] Failed to mount repo volums: ", err)
     return err
   }
+
+  return nil
+}
+
+func (w *WorkHorse) createDirs() error {
+  
+  if err := utils.MkDirAll(w.workingDir, DefaultWorkSpacePerm); err != nil {
+    base.Error("[WorkHorse.createDirs] Failed to create workspace dir: ", err)
+  }
+
+  model_dir := filepath.Join(w.workingDir, DefaultModelPath)
+  if err := utils.MkDirAll(model_dir, DefaultModelPerm); err != nil {
+    base.Error("[WorkHorse.createDirs] Failed to create model dir: ", err)
+  }
+
+  out_dir := filepath.Join(w.workingDir, DefaultOutPath)
+  if err := utils.MkDirAll(out_dir, DefaultOutPerm); err != nil {
+    base.Error("[WorkHorse.createDirs] Failed to create out dir: ", err)
+  }
+
+  files, err := ioutil.ReadDir(w.workingDir)
+  if err != nil {
+    base.Error("[WorkHorse.createDirs] Error reading directory: ", w.workingDir, err)
+  } else {
+    base.Info("Listing files from workspace directory: ", w.workingDir)
+    for _, f := range files {
+      base.Info(f.Name())
+    }
+  } 
 
   return nil
 }
@@ -119,6 +187,8 @@ func (w *WorkHorse) Init() error {
 
 func (w *WorkHorse) DoWork() error {
   var err error
+  var has_failures bool
+
   if w.flowId == "" || w.taskId == "" || w.taskAttrs == nil {
     return InvalidFlowTaskError()
   }
@@ -132,7 +202,10 @@ func (w *WorkHorse) DoWork() error {
   w.PushTaskStatus(tsk.TASK_RUNNING)
 
   task_logger := w.tlogs[w.taskId]
+
   ctx := w.ctx
+  base.Debug("[WorkHorse.DoWork] Command string: ", w.taskAttrs.Cmd)
+  base.Debug("[WorkHorse.DoWork] Command Args: ", w.taskAttrs.CmdArgs)
 
   if w.taskAttrs.Cmd == "" {
     
@@ -158,7 +231,6 @@ func (w *WorkHorse) DoWork() error {
     base.Log("[WorkHorse.DoWork] Error : ",  err)
 
     w.PushTaskStatusWithMessage(tsk.TASK_FAILED, err.Error())
-
     return err
   }
 
@@ -175,6 +247,7 @@ func (w *WorkHorse) DoWork() error {
 
         base.Debug("[WorkHorse.DoWork] Was waiting on process. Received Done")
         if err = ctx.Err(); err != nil {
+          w.PushTaskStatusWithMessage(tsk.TASK_STOPPED, err.Error())  
           return err
         }
       default: 
@@ -185,14 +258,39 @@ func (w *WorkHorse) DoWork() error {
   // initiate i/o close 
   err = command_h.WaitForIOClose(progress, err) 
   if err != nil {
-    base.Log("[WorkHorse.DoWork] Failed while Closing I/O channel: ", err) 
-    return err
+    base.Warn("[WorkHorse.DoWork] Command Error: ", err) 
+    has_failures = true
+    w.PushTaskStatusWithMessage(tsk.CMD_FAILED, "Task command line failed")
+    // continue capturing log and output files
+  }
+  
+  err = w.pushLog() 
+  if err != nil {
+    base.Warn("[WorkHorse.DoWork] pushLog failed: ", err)
+    has_failures = true
+    w.PushTaskStatusWithMessage(tsk.LOG_UPLOAD_FAILED, "Failed to capture task log")
   }
 
-  err = w.handleOutcome()
+  err = w.pushSavedModels()
   if err != nil {
-    w.PushTaskStatusWithMessage(tsk.TASK_FAILED, "Failed to upload/commit out directory to repo")
-    return err
+    base.Warn("[WorkHorse.DoWork] pushSavedModels failed: ", err, tsk.TASK_FAILED)
+    has_failures = true
+    w.PushTaskStatusWithMessage(tsk.MODEL_UPLOAD_FAILED, "Failed to upload/commit saved_models directory to repo")
+  }
+
+  err = w.pushOutput()
+  if err != nil {
+    base.Warn("[WorkHorse.DoWork] pushOutput failed: ", err)
+    has_failures = true
+    w.PushTaskStatusWithMessage(tsk.OUTPUT_UPLOAD_FAILED, "Failed to upload/commit out directory to repo")
+  }
+  
+  if has_failures  {
+    w.PushTaskStatusWithMessage(tsk.TASK_WARNING, "Failures during execution. Check log for details.")
+    if err != nil {
+      return err 
+    }  
+    return errTaskHasFailures()
   }
 
   return  w.PushTaskStatus(tsk.TASK_COMPLETED)
@@ -261,7 +359,7 @@ func (w *WorkHorse) MountVolumes() error {
   }
 
   for mount_repo, m_config := range mount_map {
-    repoFs:= fsys.NewRepoFs(w.workingDir, FileOpsConcurrency, mount_repo, m_config.CommitId, w.wc)
+    repoFs:= fsys.NewRepoFs(w.workingDir, FileOpsConcurrency, m_config.RepoName, m_config.BranchName, m_config.CommitId, w.wc)
     mountErr = repoFs.Mount()
     
     if mountErr != nil {
@@ -311,7 +409,7 @@ func (w *WorkHorse) PushTaskStatusWithMessage(status tsk.TaskStatus, msg string)
     TaskStatus: status,
     Message: msg, 
   } 
-  base.Log("[WorkHorse.PushTaskStatusWithMessage] Worker ID: ", w.Id)
+  base.Debug("[WorkHorse.PushTaskStatusWithMessage] Updating task Status: ", status)
   tsr_resp, err := w.wc.UpdateTaskStatus(w.Id, w.taskId, tsr)
   
   if err != nil {
@@ -331,17 +429,165 @@ func (w *WorkHorse) PushTaskStatusWithMessage(status tsk.TaskStatus, msg string)
 func (w *WorkHorse) getTaskUserEnv(Id string) []string{
   return nil
 }
+ 
+func (w *WorkHorse) getRepoFromFlowConfig() (string, string, string, error){
+  if w.flowAttrs == nil {
+    return "", "", "", fmt.Errorf("Repo Information is unavailble to generate model repo")
+  }
 
+  mount_map := w.flowAttrs.FlowConfig.MountMap
+  if len(mount_map) == 0 {
+    return "", "", "", nil
+  }
 
-func (w *WorkHorse) handleOutcome() error {
-  odir_size, err := w.repoFs.PushOutputDir()
+  if len(mount_map) > 1 {
+    return "", "", "", fmt.Errorf("[WorkHorse.getRepoFromFlowConfig] was expecting just one repo associated with this task.")
+  }
+
+  // expecting just one 
+  for _, mount_config := range mount_map {
+    return mount_config.RepoName, mount_config.BranchName, mount_config.CommitId, nil
+  }
+  return "","","", nil
+}
+
+func (w *WorkHorse) setModelRepo() error {
+  source_repo, source_branch, source_commit, err := w.getRepoFromFlowConfig()
   if err != nil {
-    base.Log("[WorkHorse.handleOutcome] Failed to commit output files to repo: ", err)
+    base.Warn("[WorkHorse.setModelRepo] Failed to retrieve master repo from flow config: ", err)
+    return err 
+  }
+
+  repo, branch, commit, err := w.wc.GetModelRepo(source_repo, source_branch, source_commit)
+  if err != nil {
+    base.Warn("[WorkHorse.setModelRepo] Failed to get model repo for master repo/commit: ", source_repo, source_commit, err)
     return err
   }
-  base.Log("[WorkHorse.handleOutcome] Uploaded out directory: ", odir_size)
+
+  model_path := filepath.Join(UserVolume, DefaultModelPath)
+  base.Log("Model Directory: ", model_path)
+
+  files, err := ioutil.ReadDir(model_path)
+  if err != nil {
+    base.Error("[WorkHorse.setModelRepo] Error reading directory: ", model_path, err)
+  } else {
+    base.Info("[WorkHorse.setModelRepo] Listing files from workspace directory: ", model_path)
+    for _, f := range files {
+      base.Info(f.Name())
+    }
+  } 
+
+  fs := fsys.NewRepoFs(model_path, FileOpsConcurrency, repo.Name, branch.Name, commit.Id, w.wc)  
+  w.modelFs = fs
+
   return nil
 }
 
+func (w *WorkHorse) pushSavedModels() error {
+
+  if err := w.setModelRepo(); err!= nil {
+    base.Warn("[WorkHorse.pushSavedModels] Could not set model repo: ", err)
+    return err
+  } 
+
+  dir_size, err := w.modelFs.PushModelDir()
+  if err != nil {
+    base.Log("[WorkHorse.pushSavedModels] Failed to commit output files to repo: ", err)
+    return err
+  }
+  
+  base.Log("[WorkHorse.pushSavedModels] saved_models updated (size in bytes): ", dir_size)
+  return nil
+}
+
+func (w *WorkHorse) setOutRepo() error {
+  repo, branch, commit, err := w.wc.GetFlowOutRepo(w.flowId)
+  if err != nil {
+    return err
+  }
+  out_path := w.workingDir + DefaultOutPath
+  out_repo := fsys.NewRepoFs(out_path, FileOpsConcurrency, repo.Name, branch.Name, commit.Id, w.wc)  
+  w.outFs = out_repo
+  return nil
+}
+
+func (w *WorkHorse) pushOutput() error {
+  // create out fs and then push output dir?? 
+  if err := w.setOutRepo(); err!= nil {
+    return err
+  } 
+
+  out_size, err := w.outFs.PushOutputDir()
+  if err != nil {
+    base.Log("[WorkHorse.pushOutput] Failed to commit output files to repo: ", err)
+    return err
+  }
+  
+  base.Log("[WorkHorse.pushOutput] Uploaded out directory: ", out_size)
+  return nil
+}
+
+
+func (w *WorkHorse) closeLogFiles() error {
+ 
+ for _, logger := range w.tlogs {
+  logger.Close()
+ }
+
+ return nil 
+}
+
+func (w *WorkHorse) pushLog() error {
+  var upload int64
+  logger:= w.tlogs[w.taskId]
+  
+  if logger == nil {
+    base.Log("[WorkHorse.pushLog] Logger not found for flowId:  ", w.taskId, w.tlogs)
+    return nil
+  }
+
+  err := w.closeLogFiles()
+  log_path:= logger.GetLogPath()
+
+  log_io, err := utils.Open(log_path) 
+  if err != nil {
+    base.Log("[WorkHorse.pushLog] Failed to open log file: ", log_path)
+    return err 
+  }
+
+  writer, err := w.wc.PostLogWriter(w.taskId)
+  if err != nil {
+    base.Warn("[WorkHorse.pushLog] Failed to get log http writer: ", err)
+    return err
+  }
+
+  defer writer.Close()
+
+  buf := utils.GetBuffer()
+  defer utils.PutBuffer(buf) 
+  for {
+        
+      rbuf, err := log_io.Read(buf)
+ 
+
+      if rbuf == 0 && err != nil {
+        if err == io.EOF {
+          return nil
+        }
+        return  err
+      }
+       
+      wbuf, err := writer.Write(buf[:rbuf])
+      if err != nil {
+        return err
+      }
+
+      upload = upload + int64(wbuf)  
+  }
+ 
+  base.Debug("[WorkHorse.pushLog] log size uploaded: ", upload)
+  
+  return nil
+}
 
 

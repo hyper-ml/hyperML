@@ -135,14 +135,15 @@ func (h *Handler) handleVfsPutFile() error {
   if err != nil {
     base.Error("[Handler.handleVfsPutFile] Failed to write file on to server:", object_hash, repo_name, commit_id, file_path, err)
 
-    response = map[string]interface{}{
+    /*response = map[string]interface{}{
       "file_attrs" : &ws.FileAttrs{},
       "written" : 0,
       "error": "Failed to write file on to server:",
     }
 
-    h.writeJSON(response)
-    return err 
+    h.writeJSON(response)*/
+    
+    return base.HTTPErrorf(http.StatusBadRequest, err.Error()) 
   }
 
   response = map[string]interface{}{

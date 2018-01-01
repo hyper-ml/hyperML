@@ -48,7 +48,7 @@ func (f *file) newFileHandle(pos int ) *fileHandle {
 
   // send head commit instead of file commit 
   // to avoid overwriting old commits
-  w, err = f.fs.wc.PutObjectWriter(f.RepoName, f.HeadCommitId, f.WsFile.Path) 
+  w, err = f.fs.wc.PutFileWriter(f.RepoName, f.HeadCommitId, f.WsFile.Path) 
 
    if err != nil {
     base.Log("Unable to create a server writer for file:", f.WsFile.Path)
@@ -92,7 +92,7 @@ func (f *file) createEmpty() error {
   
   base.Log("[f.createEmpty] In createEmpty :", f.WsFile.Path)
 
-  w, err := f.fs.wc.PutObjectWriter(f.RepoName, 
+  w, err := f.fs.wc.PutFileWriter(f.RepoName, 
           f.HeadCommitId, 
           f.WsFile.Path,
         ) 

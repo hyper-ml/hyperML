@@ -42,6 +42,7 @@ func ReadFromFile() (*Config, error) {
     fmt.Println("No Config file at :", configPath)
     return Default(), nil
   }
+  
   err = json.Unmarshal(config_encoded, &config)
   if err != nil {
     return nil, err

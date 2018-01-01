@@ -23,7 +23,7 @@ func failOnError(t *testing.T, err error) {
 
 func Test_WorkerCycle(t *testing.T) {
 
-  w := NewWorkHorse("", TEST_FLOW_ID, TEST_TASK_ID, TEST_WORKER_IP, TEST_WORK_DIR)
+  w := NewWorkHorse(nil, "", "/var/tmp", TEST_FLOW_ID, TEST_TASK_ID, TEST_WORKER_IP, TEST_WORK_DIR)
   
   fmt.Println("Calling Init..")
   err := w.Init() 
@@ -40,8 +40,7 @@ func Test_WorkerCycle(t *testing.T) {
       err = w.Shutdown()
       failOnError(t, err)
     }  
-  }
-
-  
+  } 
   
 }
+

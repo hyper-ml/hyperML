@@ -2,9 +2,6 @@ package rest
 
 
 import( 
-  "io"
-  "fmt"
-  "time"
   "io/ioutil"
   "net/http"
   "encoding/json"
@@ -49,6 +46,7 @@ func (h *Handler) handleLaunchFlow() error {
   var response map[string]interface{}
   var raw_input []byte
   var err error
+  var branch_name string
   
   raw_input, err = ioutil.ReadAll(h.rq.Body)
   if err != nil {
@@ -66,19 +64,30 @@ func (h *Handler) handleLaunchFlow() error {
   if flow_req.Repo.Name == "" || flow_req.CmdString == "" {
     return base.HTTPErrorf(http.StatusInternalServerError, "Invalid method params")
   } 
+  if flow_req.Branch.Name != "" {
+    branch_name = flow_req.Branch.Name
+  } else {
+    branch_name = "master"
+  }
 
   if flow_req.Commit.Id == "" {
-    commit_id, err := h.server.workspaceApi.StartCommit(flow_req.Repo.Name, "master")
+    commit_id, err := h.server.workspaceApi.StartCommit(
+      flow_req.Repo.Name, branch_name)
+
     if err != nil {
       base.Log("[Handler.handleLaunchFlow] Failed to start commit: ", err)
-      h.writeJSON(response)   
-      return nil
+      //h.writeJSON(response)   
+      return base.HTTPErrorf(http.StatusBadRequest, err.Error())
     }
     flow_req.Commit  = ws.Commit { Id: commit_id }
   } 
 
   flow_resp, err := h.server.flowServer.LaunchFlow(flow_req)
-  
+  if err != nil {
+    base.Log("[Handler.handleLaunchFlow] Failed to launch task: ", err)
+    return base.HTTPErrorf(http.StatusBadRequest, err.Error())
+  }
+
   base.Log("flow_resp in handler: ", flow_resp)
   // wait for a second or when flow is ready ?
   
@@ -93,32 +102,42 @@ func (h *Handler) handleLaunchFlow() error {
 
 
 
-func (h *Handler) handleGetFlowLog() error {
+
+func (h *Handler) handleGetOrCreateOutRepo() error {
   if (h.rq.Method != "GET") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
+  
+  flow_id, _ := h.getMandatoryUrlParam("flowId")
+  if flow_id == "" {
+    return base.HTTPErrorf(http.StatusBadRequest, "Invalid flowId params %s", flow_id)   
+  } 
 
-  flow_id, err := h.getMandatoryUrlParam("flowId")
-  if err != nil  {
-    return base.HTTPErrorf(http.StatusInternalServerError, "One of the params is missing: flowId")
+  // create or get output repo for the flow
+  repo_attrs, err := h.server.flowServer.GetOrCreateOutRepo(flow_pkg.Flow {Id: flow_id})
+  if err != nil {
+   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
   }
 
-  log_path :=  h.server.flowServer.GetFlowLogPath(flow_id)
-  rs, err:= h.server.objectAPI.ReadSeeker(log_path, 0, 0)
+  //start a fresh commit in master branch 
+  commit_attrs, err:= h.server.workspaceApi.InitCommit(repo_attrs.Repo.Name, "master", "")
 
   if err != nil {
-    if  err != io.EOF {
-      base.Log("Failed to fetch log object: ", log_path, err)
-      return base.HTTPErrorf(http.StatusBadRequest, "Error occurred while fetching log object.")
-    }
-    base.Log("[Handler.handleGetFlowLog]: Reached EOF. Nothing more to read. ", log_path)
-    //return nil
+   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
+  }
+  var branch *ws.Branch
+  if repo_attrs.Branches["master"] != nil {
+    branch = repo_attrs.Branches["master"] 
   }
 
-  h.setHeader("Content-Disposition", fmt.Sprintf("attachment; filename=\"%v\"", log_path))
-  http.ServeContent(h.response, h.rq, log_path, time.Time{}, rs)
+  out_response := &flow_pkg.FlowOutRepoResponse {
+    Repo: repo_attrs.Repo,
+    Branch: branch,
+    Commit: commit_attrs.Commit,
+  } 
   
+  response := structs.Map(out_response)
+  h.writeJSON(response)
+
   return nil
-}
-
-
+}  

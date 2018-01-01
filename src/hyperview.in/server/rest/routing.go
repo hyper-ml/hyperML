@@ -21,12 +21,17 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   router.Handle("/repo", makeHandler(sc, privs, (*Handler).handlePostRepo)).Methods("POST")
   router.Handle("/repo", makeHandler(sc, privs, (*Handler).handleGetRepo)).Methods("GET")
 
+  
   // commit activities
   router.Handle("/commit", makeHandler(sc, privs, (*Handler).handleGetOrStartCommit)).Methods("GET")
-  
+  router.Handle("/commit", makeHandler(sc, privs, (*Handler).handleCloseCommit)).Methods("POST")
 
   // repo attr getters
   router.Handle("/repo_attrs", makeHandler(sc, privs, (*Handler).handleGetRepoAttrs)).Methods("GET")
+  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/model_repo", makeHandler(sc, privs, (*Handler).handleGetOrCreateModelRepo)).Methods("GET")
+  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/size", makeHandler(sc, privs, (*Handler).handleGetCommitSize)).Methods("GET")
+
+  //other getters
   router.Handle("/branch_attr", makeHandler(sc, privs, (*Handler).handleGetBranchAttrs)).Methods("GET")
   router.Handle("/commit_attrs", makeHandler(sc, privs, (*Handler).handleGetCommitAttrs)).Methods("GET")
   router.Handle("/file_attrs", makeHandler(sc, privs, (*Handler).handleGetFileAttrs)).Methods("GET")
@@ -38,11 +43,14 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   // api for task and flows
   router.Handle("/flow/{flowId}", makeHandler(sc, privs, (*Handler).handleGetFlowAttrs)).Methods("GET")
   router.Handle("/flow", makeHandler(sc, privs, (*Handler).handleLaunchFlow)).Methods("POST")
+
+  router.Handle("/flow/{flowId}/out_repo", makeHandler(sc, privs, (*Handler).handleGetOrCreateOutRepo)).Methods("GET")
   
 
   // log getters
-  router.Handle("/flow/{flowId}/log", makeHandler(sc, privs, (*Handler).handleGetFlowLog)).Methods("GET")
-  
+  router.Handle("/tasks/{taskId}/log", makeHandler(sc, privs, (*Handler).handleGetTaskLog)).Methods("GET")
+  router.Handle("/tasks/{taskId}/log", makeHandler(sc, privs, (*Handler).handlePostTaskLog)).Methods("POST")
+    
 
   // workers
   router.Handle("/worker/register", makeHandler(sc, privs, (*Handler).handleRegisterWorker)).Methods("POST")

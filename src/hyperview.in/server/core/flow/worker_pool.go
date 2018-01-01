@@ -42,8 +42,7 @@ type WorkerPool interface {
   WorkerExists(flowId, taskId string) bool
   AssignWorker(taskId string, flowAttrs *FlowAttrs) error
   ReleaseWorker(flow Flow ) error
-
-
+  
   Watch(eventCh chan WorkerEvent)
   CloseWatch() 
 

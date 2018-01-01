@@ -34,10 +34,14 @@ import(
 const (
   defaultImage = "workhorse:0.2" 
   defaultReplicas = 1
-  defaultPullPolicy = "IfNotPresent" // TODO "IfNotPresent"
+  defaultPullPolicy = "IfNotPresent"  
   SERVER_ADDR = "http://192.168.65.1"
   defaultNameSpace = "hyperflow"
   defaultRestartPolicy = "Always"
+  storageVolumeName = "work_data"
+  defaultWorkerPort = 9999
+  defaultFlowLogDir = "flows"
+  taskContainerPrefix = "task-"
 )
 
 var (
@@ -85,10 +89,16 @@ type ComputeOptions struct {
 
   containerImage string
   containerPullPolicy string
+  
+  //container volumes
+  volumes          []core_v1.Volume       
+  volumeMounts     []core_v1.VolumeMount 
 
   resourceReq *core_v1.ResourceList 
   resLimits *core_v1.ResourceList
   envVars []core_v1.EnvVar
+
+  workerPort int32
 }
 
 func errInvalidFlowAttrs() error{
@@ -157,14 +167,34 @@ func (pk PodKeeper) genOptions(taskId string, flowAttrs *FlowAttrs) (nsOpts *Com
   labels:= map[string]string{} 
   labels["deployId"] = deploy_id
   labels["type"] = "worker"
+ 
+  var mounts []core_v1.VolumeMount
+  var volume []core_v1.Volume
 
-  return  &ComputeOptions{
+  volume = append(volume, core_v1.Volume{
+      Name: "wh-data",
+      VolumeSource: core_v1.VolumeSource{
+        EmptyDir: &core_v1.EmptyDirVolumeSource{},
+      },
+  })
+
+  mounts = append(mounts, core_v1.VolumeMount{
+    Name:      "wh-data",
+    MountPath: "/wh_data",
+  })
+
+  w_port := int32(defaultWorkerPort)
+
+  return &ComputeOptions{
     deployId: deploy_id,
     flowAttrs: flowAttrs,
     currentTaskId: taskId, 
     containerImage:  image,
     nreplicas: defaultReplicas,
     labels: labels, 
+    volumes: volume,
+    volumeMounts: mounts,
+    workerPort: w_port,
   }, nil
 }
 
@@ -218,11 +248,39 @@ func resourceBounds(opts *ComputeOptions) core_v1.ResourceRequirements{
   return res_req
 }
 
+func (pk *PodKeeper) genWorkerServiceSpec(opts *ComputeOptions) (*core_v1.Service, error) {
+  
+  var ws_spec *core_v1.Service 
+  ws_spec = &core_v1.Service {
+    TypeMeta: meta_v1.TypeMeta {
+      Kind:       "Service",
+      APIVersion: "v1",
+    },
+    ObjectMeta: meta_v1.ObjectMeta {
+      Name:        "worker-service-" + opts.deployId,
+      Labels:      opts.labels, 
+    },
+    Spec: core_v1.ServiceSpec {
+      Selector: opts.labels,
+      Ports: []core_v1.ServicePort {
+        { Port: opts.workerPort,
+          Name: "worker-port",
+        },
+      },
+    },
+  }
+
+  return ws_spec, nil
+}
+
+func getContainerName(taskId string) string {
+  return taskContainerPrefix + taskId
+}
 
 func (pk *PodKeeper) genPodTemplate(opts *ComputeOptions) (core_v1.PodTemplateSpec, error) {
 
   pod_spec := core_v1.PodSpec{}
-  container_name := "task-" + opts.currentTaskId
+  container_name := getContainerName(opts.currentTaskId)
   zero_value := int64(0)
 
   policy := imagePolicy(opts)
@@ -250,7 +308,7 @@ func (pk *PodKeeper) genPodTemplate(opts *ComputeOptions) (core_v1.PodTemplateSp
       Value: opts.currentTaskId,
     }, {
       Name: "WORKSPACE_DIR",
-      Value: "/home",
+      Value: "/home/workspace",
     },  {
       Name: "WORKER_IP",
       ValueFrom: &core_v1.EnvVarSource{
@@ -286,10 +344,12 @@ func (pk *PodKeeper) genPodTemplate(opts *ComputeOptions) (core_v1.PodTemplateSp
         Command: []string{"workhorse"},
         Env: env,
         ImagePullPolicy: core_v1.PullPolicy(policy),
+        VolumeMounts: opts.volumeMounts,
       },
     },
     RestartPolicy: defaultRestartPolicy,
     TerminationGracePeriodSeconds: &zero_value,
+    Volumes: opts.volumes,
 //    HostNetwork: true,
 //    DNSPolicy: "ClusterFirstWithHostNet",
     //TODO: add service account name from providers
@@ -308,6 +368,8 @@ func (pk *PodKeeper) genPodTemplate(opts *ComputeOptions) (core_v1.PodTemplateSp
 }
 
 func (pk *PodKeeper) deleteDeployment(deployId string) error {
+  
+  base.Info("[PodKeeper.deleteDeployment] Deleting flow deployment: ", deployId)
 
   selector := fmt.Sprintf("deployId=%s", deployId)
   deployer, err := pk.kubeClient.AppsV1().Deployments(core_v1.NamespaceDefault).List(meta_v1.ListOptions{LabelSelector: selector})
@@ -343,38 +405,50 @@ func (pk *PodKeeper) ReleaseWorker(flow Flow ) error {
   deploy_id:= getDeployId(flow.Id, flow.Version)
   return pk.deleteDeployment(deploy_id) 
 }
- 
 
+
+
+
+func (pk *PodKeeper) regWorkerService(ns string, spec *core_v1.Service) error {
+
+  if _, err:= pk.kubeClient.CoreV1().Services(ns).Create(spec);  scrubError(err) != nil {
+    return err
+  }
+
+  return nil
+}
 
 // launch a new namespace config with K8s 
 // 
 func (pk *PodKeeper) AssignWorker(taskId string, flowAttrs *FlowAttrs) error{
+ 
   user_opts, err := pk.genOptions(taskId, flowAttrs)
 
   if err != nil {
     base.Log("[PodKeeper.AssignWorker] Failed to create flow worker options: ",flowAttrs.Flow.Id, err)
     return err
   }
-
   rc_spec := pk.genRcSpec(user_opts)
   pod_template, err := pk.genPodTemplate(user_opts)
-  rc_spec.Spec.Template = pod_template
-  //ns := "hyperflow_ns"
+  rc_spec.Spec.Template = pod_template 
+  ws_spec, err := pk.genWorkerServiceSpec(user_opts)  
 
   result, err := pk.kubeClient.AppsV1().Deployments(core_v1.NamespaceDefault).Create(rc_spec)
   
-  if err != nil {
-    if !strings.Contains(err.Error(), "already exists") {
-      base.Log("[PodKeeper.AssignWorker] Failed to create deployment for namespace: FlowId, TaskId", flowAttrs.Flow.Id, taskId)
-      base.Log("[PodKeeper.AssignWorker] Error: ", err)
-      return err
-    }
+  if scrubError(err) != nil {
+    base.Log("[PodKeeper.AssignWorker] Failed to create deployment for namespace: FlowId, TaskId", flowAttrs.Flow.Id, taskId)
+    base.Log("[PodKeeper.AssignWorker] Error: ", err)
+    return err 
   }
 
   base.Log("[PodKeeper.AssignWorker] Created deployment .\n", result.GetObjectMeta().GetName())
 
-  return nil
+  if err := pk.regWorkerService(core_v1.NamespaceDefault, ws_spec); scrubError(err) != nil {
+    base.Error("[PodKeeper.AssignWorker] Worker Service Creation failed: ", err)
+    return err 
+  }
 
+  return nil 
 }
 
 
@@ -416,14 +490,13 @@ func(pk *PodKeeper)  Watch(eventCh chan WorkerEvent) {
         }
 
         pod_evt_str := string(pod_event.Type)
-        base.Log("[podKeeper.Watch] Pod event:", pod_evt_str)
 
         pod, ok := pod_event.Object.(*core_v1.Pod)
         if !ok  {
           continue
         }
 
-        base.Log("[podKeeper.Watch] PodId: ", pod.Name, string(pod.Status.Phase))
+        base.Debug("[podKeeper.Watch] pod_id: " +  pod.Name + ", pod_event: "+ pod_evt_str + ", pod_phase: "+ string(pod.Status.Phase))
         
         deploy_id := pod.ObjectMeta.Labels["deployId"]
         wevt.Flow = Flow{Id: deploy_id}
@@ -454,7 +527,9 @@ func(pk *PodKeeper)  Watch(eventCh chan WorkerEvent) {
         if pod.Status.Phase == core_v1.PodFailed ||
            pod.Status.Phase == core_v1.PodSucceeded || 
            pod.Status.Phase == core_v1.PodUnknown {
-          base.Log("[PodKeeper.Watch] pod completed: ", pod.Status.Phase, pod.Status.Message)
+          base.Debug("[PodKeeper.Watch] podId: " + pod.Name + " pod_status: " + string(pod.Status.Phase) + "  container_status: unknown")
+
+          base.Log("[PodKeeper.Watch]  podId: " + pod.Name + " pod completed: ", pod.Status.Phase, pod.Status.Message)
           wevt.Type = WorkerEventType(WorkerSucceeded)
           eventCh <- wevt
           continue
@@ -465,14 +540,17 @@ func(pk *PodKeeper)  Watch(eventCh chan WorkerEvent) {
         for _, status := range pod.Status.ContainerStatuses {
 
           if status.State.Terminated != nil {
+            base.Debug("[PodKeeper.Watch] exit code: ", status.State.Terminated.ExitCode)
             if status.State.Terminated.ExitCode == 0 {
               base.Log("[PodKeeper.Watch] Contaner terminated with 0 code", status.State.Terminated)
               // TODO:  delete deployment here 
               // dont wait
 
+              base.Debug("[PodKeeper.Watch]  podId: " + pod.Name + " pod_status: unknown  container_status: Terminated")
+              pk.SaveWorkerLog(wevt.Worker, wevt.Flow) 
               wevt.Type = WorkerEventType(WorkerSucceeded)
               eventCh <- wevt
-              pk.SaveWorkerLog(wevt.Worker, wevt.Flow)              
+                           
               pk.deleteDeployment(deploy_id)
           
               continue
@@ -480,16 +558,21 @@ func(pk *PodKeeper)  Watch(eventCh chan WorkerEvent) {
             }
 
           if status.State.Running != nil { 
-              wevt.Type = WorkerEventType(WorkerSucceeded)
-              eventCh <- wevt
+              base.Debug("[PodKeeper.Watch]  podId: " + pod.Name + " pod_status: running  container_status: unknown")
+
+              //wevt.Type = WorkerEventType(WorkerSucceeded)
+              //eventCh <- wevt
               pk.SaveWorkerLog(wevt.Worker, wevt.Flow)
               continue
             }
 
           if status.State.Waiting != nil && podFailureReasons[status.State.Waiting.Reason] {
+
+              base.Debug("[PodKeeper.Watch]  podId: " + pod.Name + " pod_status: Waiting  container_status: " + status.State.Waiting.Reason)
+              pk.SaveWorkerLog(wevt.Worker, wevt.Flow)
+
               wevt.Type = WorkerEventType(WorkerError)
               eventCh <- wevt
-              pk.SaveWorkerLog(wevt.Worker, wevt.Flow)
               pk.deleteDeployment(deploy_id)
           
               continue
@@ -504,29 +587,83 @@ func (pk *PodKeeper) CloseWatch() {
   pk.podWatcher.Stop()
 }
 
+func (pk *PodKeeper) SaveMessageToWorkerLog(s string, worker Worker, flow Flow) (error) {
+  base.Info("[PodKeeper.SaveMessageToWorkerLog] s, worker Id, flow Id: ", s, worker.Id, flow.Id )
+
+  r := strings.NewReader(s)
+ 
+  //TODO: consider appending log instead of overwriting
+  obj_path, _, bytes_written, err := pk.logStorageServer.SaveObject(flow.Id + ".log", defaultFlowLogDir, r, false)
+
+  base.Log("[PodKeeper.SaveMessageToWorkerLog] Log written: ", obj_path, bytes_written, err)
+  return nil
+}
+
+
 func (pk *PodKeeper) SaveWorkerLog(worker Worker, flow Flow) (error) {
-  var r io.Reader
+  base.Info("[PodKeeper.SaveWorkerLog] worker Id, flow Id: ", worker.Id, flow.Id )
 
   if worker.PodId == "" {
-    base.Log("[PodKeeper.SaveWorkerLog] No Pod ID found")
+    return pk.saveLogWithFlowId(flow.Id)
+  }
+  return pk.SavePodLog(worker.PodId, "flows", flow.Id + ".log")
+}
+
+func (pk *PodKeeper) saveLogWithFlowId(flowId string) error {
+  base.Info("[PodKeeper.saveLogWithFlowId] flow Id: ", flowId )
+
+  selector := fmt.Sprintf("deployId=%s", flowId)
+  pod_list, _ := pk.kubeClient.CoreV1().Pods(core_v1.NamespaceDefault).List(meta_v1.ListOptions{LabelSelector: selector})
+  
+  if len(pod_list.Items) > 0 {
+    for _, pod := range pod_list.Items {
+      base.Debug("[PodKeeper.saveLogWithDeployId] pod: ", pod.Name)
+      if pod.Name != "" {
+        if err := pk.SavePodLog(pod.Name, "flow", flowId); err != nil {
+          base.Warn("[PodKeeper.saveLogWithFlowId] Error: ", err)
+          return err
+        }
+      }
+    }
+  }  
+
+  return nil
+}
+
+func (pk *PodKeeper) SavePodLog(podId, logDir, logName string) (error) {
+  var r io.Reader
+  var log_name string 
+  var log_dir string 
+
+  if podId == "" {
+    base.Log("[PodKeeper.SavePodLog] No Pod ID found")
     return nil
   }
 
+  if logName == "" {
+    log_name = "pod-" + podId + ".log"
+    log_dir =  defaultFlowLogDir 
+  } else {
+    log_name = logName
+    log_dir = logDir
+  }
+
+
   body, err := pk.kubeClient.CoreV1().Pods(core_v1.NamespaceDefault).GetLogs(
-          worker.PodId, &core_v1.PodLogOptions{
-            Container: "task-" + flow.Id,
+          podId, &core_v1.PodLogOptions{ 
           }).Timeout(10 * time.Second).Do().Raw()
+ 
   if err != nil {
-    base.Log("[PodKeeper.SaveWorkerLog] Failed to get pod log: ", worker.PodId)
+    base.Log("[PodKeeper.SavePodLog] Failed to get pod log: ", podId, err)
     return err
   }
 
-  r = bytes.NewReader(body)
-  task_logdir := "flow"  
+  r = bytes.NewReader(body) 
   //TODO: consider appending log instead of overwriting
-  obj_path, _, bytes_written, err := pk.logStorageServer.SaveObject(flow.Id + ".log", task_logdir, r, false)
+  obj_path, _, bytes_written, err := pk.logStorageServer.SaveObject(log_name, log_dir, r, false)
 
-  base.Log("[PodKeeper.SaveWorkerLog] Log written: ", obj_path, bytes_written, err)
+  base.Log("[PodKeeper.SavePodLog] Log written: ", obj_path, bytes_written, err)
+
   return nil
 }
 

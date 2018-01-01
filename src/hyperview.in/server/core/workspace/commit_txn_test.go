@@ -18,7 +18,7 @@ func Test_NewCommit(t *testing.T) {
   }
 
   commit_id:= "0e54042be69d423cb17711ece7582230"
-  _, err = NewCommitTxn(TEST_REPO_NAME, commit_id, db)
+  _, err = NewCommitTxn(TEST_REPO_NAME, "master", commit_id, db)
   if err != nil {
     fmt.Println("Test_NewCommit Failed:", err)
     t.Fatalf("Test_NewCommit Failed: %s", err)
@@ -34,7 +34,7 @@ func Test_AddFile(t *testing.T) {
   //commit_id:= "b2874bdc9cfd4d0cacd8b8091e90fa93"
   var commit_id string
 
-  txn, err := NewCommitTxn(TEST_REPO_NAME, commit_id, db)
+  txn, err := NewCommitTxn(TEST_REPO_NAME, "master", commit_id, db)
   if err != nil {
     fmt.Println("Test_NewCommit Failed:", err)
     t.Fatalf("Test_NewCommit Failed: %s", err)
@@ -48,7 +48,7 @@ func Test_AddFile(t *testing.T) {
     t.Fatalf("Failed to.Start commit: %s", err)
   }
 
-  err = txn.AddFile("/workspace/pattern.py", "/objects/34d234dsffedf3d", 11, "32edcdsf23dcsafewrf")
+  _, err = txn.AddFile("/workspace/pattern.py", "/objects/34d234dsffedf3d", 11, "32edcdsf23dcsafewrf")
   if err != nil {
     fmt.Println("Test_AddFile Failed:", err)
     t.Fatalf("Test_AddFile Failed: %s", err)
@@ -61,7 +61,7 @@ func Test_AddFile(t *testing.T) {
 func Test_ListDir(t *testing.T) {
   db, _ := db.NewDatabaseContext(test_db_name, test_db_user, test_db_password)
 
-  txn, _ := NewCommitTxn(TEST_REPO_NAME, "", db)
+  txn, _ := NewCommitTxn(TEST_REPO_NAME, "master", "", db)
   //use existing commit
   commit_id, _ := txn.Start()
   fmt.Println("commit_id", commit_id)
@@ -74,7 +74,7 @@ func Test_LookupFile(t *testing.T) {
 
   db, _ := db.NewDatabaseContext(test_db_name, test_db_user, test_db_password)
 
-  txn, _ := NewCommitTxn(TEST_REPO_NAME, "", db)
+  txn, _ := NewCommitTxn(TEST_REPO_NAME, "master", "", db)
   //use existing commit
   commit_id, _ := txn.Start()
   fmt.Println("commit_id: ", commit_id)
@@ -92,7 +92,7 @@ func Test_LookupDir(t *testing.T) {
 
   db, _ := db.NewDatabaseContext(test_db_name, test_db_user, test_db_password)
 
-  txn, _ := NewCommitTxn(TEST_REPO_NAME, "", db)
+  txn, _ := NewCommitTxn(TEST_REPO_NAME, "master", "", db)
   //use existing commit
   commit_id, _ := txn.Start()
   fmt.Println("commit_id: ", commit_id)

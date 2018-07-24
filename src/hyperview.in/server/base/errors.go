@@ -5,6 +5,22 @@ import (
   "net/http"
 )
 
+// Custom error when file is not found 
+type ErrFileNotFound struct {
+  RepoName string
+  CommitId string
+  Fpath string
+}
+
+func (e ErrFileNotFound) Error() string {
+  return fmt.Sprintf("%s %s %s not found", e.RepoName, e.CommitId, e.Fpath)
+}
+
+func IsErrFileNotFound(e error) bool {
+  _, ok := e.(ErrFileNotFound)
+  return ok
+}
+
 
 type HTTPError struct {
 	Status int

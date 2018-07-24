@@ -3,6 +3,7 @@ package db
 import (
   "fmt"
   "encoding/json"
+  "database/sql"
   "hyperview.in/server/base"
 )
 
@@ -85,6 +86,26 @@ func (d *DatabaseContext) Delete(key string) error{
   return tx.Commit()
 }
 
+func (d *DatabaseContext) SoftDelete(key string) error {
+  tx, err := d.conn.Begin()
+  if err != nil {
+    return err
+  }
+  trash_key:= "deleted:" + key 
+
+  stmt, err := tx.Prepare("UPDATE ws_collections SET key = $1 WHERE key=$2")
+  if err != nil {
+    return err
+  }
+
+  if _, err = stmt.Exec(trash_key, key); err != nil {
+    tx.Rollback()
+    return err
+  }
+
+  return tx.Commit()
+}
+
 func (d *DatabaseContext) KeyExists(key string) (bool) {
   var err error
   var data []byte
@@ -115,15 +136,28 @@ func (d *DatabaseContext) Get(key string) ([]byte, error) {
   var err error 
 
   rows, err := d.conn.Query("SELECT value FROM ws_collections WHERE key=$1", key)
-  if err != nil {
+
+  switch {
+  
+  case err == sql.ErrNoRows:
+    base.Debug("DatabaseContext.Get(): Found no key in DB", key)
+    return nil, ErrRecNotFound{}
+
+  case err != nil:
     fmt.Println("failed to retrive rows", err)
     return nil, err
+
+  default:
   }
   
   defer rows.Close()
 
   for rows.Next() {
-    err = rows.Scan(&data)
+    err = rows.Scan(&data) 
+  }
+  
+  if data == nil {
+    return nil, ErrRecNotFound{}
   }
 
   return data, err

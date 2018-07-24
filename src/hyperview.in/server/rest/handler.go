@@ -4,6 +4,7 @@ import (
   "fmt"
   "time"
   "strings"
+  "io"
   "net/http"
   "net/url"
   "sync/atomic"
@@ -18,6 +19,7 @@ type handler struct {
 	server *ServerContext
   rq *http.Request
   response http.ResponseWriter
+  requestBody io.ReadCloser
   status int
   statusMessage string
   privs handlerPrivs
@@ -46,6 +48,7 @@ func makeHandler(server *ServerContext, privs handlerPrivs, method handlerMethod
     h.writeError(err)
     })
 }
+ 
 
 // TODO: 
 // 1. Add user details
@@ -77,6 +80,7 @@ func (h *handler) invoke(method handlerMethod) error {
 //
 
 func (h *handler) writeError(err error) {
+  
   if err != nil {
     status, message := base.ErrorToHTTPStatus(err)
     h.writeStatus(status, message)
@@ -110,13 +114,14 @@ func (h *handler) writeStatus(status int, message string) {
 }
 
 func (h *handler) logRequest() {
-  queryParams := h.getQueryParams()
+  //queryParams := h.getQueryParams()
 
-  base.Log("HTTP Request Log:", h.uid, h.rq.Method, queryParams)
+  //base.Log("HTTP Request Log:", h.uid, h.rq.Method, queryParams)
 }
 
 func (h *handler) logRequestBody() {
   fmt.Println("Log request body. TODO")
+
 }
 
 func (h *handler) getQueryParams() url.Values{
@@ -181,3 +186,5 @@ func (h *handler) writeJSONStatus(status int, value interface{}) {
     h.setStatus(status, "")
   }
 }
+
+ 

@@ -25,19 +25,4 @@ func NewObjectAPI(dir string, cacheBytes int64, storage_backend string) (ObjectA
   return nil, fmt.Errorf("Unknown Storage Location")
 
 }
-
-
-func NewStorageServer(dir string, cacheBytes int64, storage_backend string) (StorageServer, error) {
-	switch storage_backend {
-    case GoogleStorage:
-      s, err := newGoogleStorageAPIServer(dir, cacheBytes)
-      if err != nil {
-        return nil, err
-      }
-
-      return s, nil
-
-  }
-  return nil, fmt.Errorf("Unknown Storage Location")
-
-}
+ 

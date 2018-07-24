@@ -14,8 +14,22 @@ func createHandler(sc *ServerContext, privs handlerPrivs) (*mux.Router) {
   router.StrictSlash(true)
   router.Handle("/", makeHandler(sc, privs, (*handler).handleRoot)).Methods("GET", "HEAD")
   router.Handle("/object", makeHandler(sc, privs, (*handler).handleCreateObject)).Methods("POST")
-  router.Handle("/get_object", makeHandler(sc, privs, (*handler).handleReadObject)).Methods("GET")
+  router.Handle("/object", makeHandler(sc, privs, (*handler).handleGetObject)).Methods("GET")
+  router.Handle("/object", makeHandler(sc, privs, (*handler).handlePutObject)).Methods("PUT")
+  
+  // api getters for meta 
+  router.Handle("/repo", makeHandler(sc, privs, (*handler).handleGetRepo)).Methods("GET")
+  router.Handle("/repo_info", makeHandler(sc, privs, (*handler).handleGetRepoInfo)).Methods("GET")
+  router.Handle("/branch_info", makeHandler(sc, privs, (*handler).handleGetBranchInfo)).Methods("GET")
+  router.Handle("/commit_info", makeHandler(sc, privs, (*handler).handleGetCommitInfo)).Methods("GET")
+  router.Handle("/file_info", makeHandler(sc, privs, (*handler).handleGetFileInfo)).Methods("GET")
 
+  //vfs methods
+  router.Handle("/vfs/list_dir", makeHandler(sc, privs, (*handler).handleListDir)).Methods("GET")
+  router.Handle("/vfs/lookup",  makeHandler(sc, privs, (*handler).handleFileLookup)).Methods("GET") 
+  router.Handle("/vfs/put_file",  makeHandler(sc, privs, (*handler).handleVfsPutFile)).Methods("PUT") 
+  router.Handle("/vfs/get_file",  makeHandler(sc, privs, (*handler).handleVfsGetFile)).Methods("GET") 
+  
   return router
 }
 

@@ -15,11 +15,31 @@ const DefaultLogLevel = 0
 const (
   infoLevel = iota
   debugLevel
+  WarnLevel
   errorLevel
 )
 
 func Log(format string, args ...interface{}) {
   logTo(DefaultLogLevel, 0, format, args)
+}
+
+
+func Info(format string, args ...interface{}) {
+  logTo(DefaultLogLevel, 2, format, args)
+}
+
+func Warn(format string, args ...interface{}) {
+  logTo(DefaultLogLevel, 2, format, args)
+}
+
+
+func Error(format string, args ...interface{}) {
+  logTo(DefaultLogLevel, 2, format, args)
+}
+
+
+func Debug(format string, args ...interface{}) {
+  logTo(DefaultLogLevel, 1, format, args)
 }
 
 

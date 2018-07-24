@@ -4,7 +4,8 @@ package workspace
 import (
   "fmt"
 	"testing"
-  "strings"
+  //"encoding/json"
+  //"strings" 
   "hyperview.in/server/core/db"
 
   "hyperview.in/server/core/storage"
@@ -106,7 +107,7 @@ func Test_GetRepo(t *testing.T) {
 }
 
 
-
+/*
 func Test_Commit(t *testing.T) {
   api, _ := getAPIServer()
   
@@ -124,7 +125,6 @@ func Test_Commit(t *testing.T) {
 }
 
 
-
 func Test_AddFile(t *testing.T) {
 
   api, err := getAPIServer()
@@ -140,13 +140,6 @@ func Test_AddFile(t *testing.T) {
     fmt.Println("Add file to repo Error", err)
     t.Fatalf("Unable to add file repo")
   }
-
-  /*_, err = api.AddFileToRepo(TEST_REPO_NAME, "file", strings.NewReader("Hello!"))
-  if err != nil {
-
-    fmt.Println("Changed File add to Repo Error", err)
-    t.Fatalf("Unable to add changed file to repo")
-  }*/
 
 }
 func Test_InitCommit(t *testing.T) {
@@ -167,3 +160,15 @@ func Test_CloseCommit(t *testing.T) {
   }  
 }
 
+
+func Test_DownloadRepo(t *testing.T) {
+  api, _ := getAPIServer()
+  commit_info, err := api.DownloadRepo(TEST_REPO_NAME)  
+  if err != nil {
+    fmt.Println("Failed to retrieve repo", err)
+    t.Fatalf("Failed to retrieve repo")
+  } 
+  b, _ := json.Marshal(commit_info)
+  fmt.Println("commit_info:", string(b)) 
+
+}  */

@@ -6,9 +6,17 @@ import (
   "hyperview.in/server/base"
 )
 
+type DatabaseConfig struct {
+  Name string
+  User string
+  Pass string
+}
+
 type ServerConfig struct {
   Interface *string
   AdminInterface *string
+  BaseDir string
+  DatabaseConfig *DatabaseConfig
 
   // Add logging
 }
@@ -32,11 +40,21 @@ func (config *ServerConfig) Serve(addr string, handler http.Handler) {
 func ParseCommandLine() {
   addr := flag.String("interface", DefaultInterface, "Address to bind to")
   adminAddr := flag.String("adminInterface", DefaultAdminInterface, "Address to bind admin interface to")
+  
+
   flag.Parse()
+
+  dbConfig := &DatabaseConfig{
+    Name: "amp_db",
+    User: "apple",
+    Pass: "",
+  }
   
   config = &ServerConfig{
       Interface:        addr,
       AdminInterface:   adminAddr,
+      BaseDir:          "hyperview",
+      DatabaseConfig:   dbConfig,
   }
 }
 

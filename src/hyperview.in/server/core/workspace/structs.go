@@ -12,6 +12,13 @@ type Repo struct {
   Name string 
 }
 
+func NewRepo(name string) *Repo{
+  return &Repo {
+    Name: name,
+  }
+}
+
+
 // TODO: add created, updated etc
 type RepoInfo struct {
   Repo *Repo 
@@ -37,7 +44,6 @@ type Commit struct {
   //TODO: add author, time etc
 }
 
-
 type CommitInfo struct {
   Commit *Commit 
   Parent_commit *Commit
@@ -46,27 +52,67 @@ type CommitInfo struct {
   Size_bytes uint64
   Started time.Time
   Finished time.Time
-  Tree []*File
-  FileMap map[string]*File
-  treeLock sync.RWMutex
 }
 
-func (commitInfo *CommitInfo) AddFileToMap(file *File) (*CommitInfo, error) {
-  commitInfo.FileMap[file.Path] = file
-  return commitInfo, nil
+func (ci *CommitInfo) Id() string{
+  return ci.Commit.Id
 }
 
-func (commitInfo *CommitInfo) AddFile(file *File) (*CommitInfo, error) {
-  commitInfo.Tree = append(commitInfo.Tree, file)
-   return commitInfo, nil
+
+type FileMap struct {
+  Commit *Commit
+  Entries map[string]*File
+  lock sync.RWMutex
 }
 
+func NewFileMap(commit *Commit) *FileMap{
+  m := make(map[string] *File)
+  return &FileMap{
+    Commit: commit,
+    Entries: m,
+  }
+}
+
+func CopyFileMap(commit *Commit, refMap FileMap) *FileMap {
+  m := NewFileMap(commit)
+  for k,v := range refMap.Entries {
+    m.Entries[k] = v
+  }
+  return m
+}
+
+func (fm *FileMap) size() int{
+  return len(fm.Entries)
+}
+
+func (fm *FileMap) Add(file *File) {
+  fm.lock.Lock()
+  defer fm.lock.Unlock()
+  fm.Entries[file.Path] = file
+//  return fm
+}
+
+func (fm *FileMap) Remove(file *File) {
+  fm.lock.Lock()
+  defer fm.lock.Unlock()
+
+  _, ok := fm.Entries[file.Path];
+
+  if ok {
+    delete(fm.Entries, file.Path)
+  }
+//  return fm
+}
 
 type File struct {
   Commit *Commit 
   Path string
 }
 
+type FileInfoMap struct {
+  Commit *Commit
+  Entries map[string]*FileInfo
+}
 
 type FileInfo struct {
   File *File 
@@ -81,10 +127,11 @@ type Object struct {
   Hash string
 }
 
+ 
 
 func NewFileInfo(commit *Commit, filePath string, objectPath string, sizeBytes int64, checkSum string) (*FileInfo) {
 
-  object := &Object{Path: objectPath}
+  object := &Object{Path: objectPath, Hash: objectPath}
   file := &File{Commit: commit, Path: filePath}
   file_info := &FileInfo{
     File: file, 
@@ -96,6 +143,16 @@ func NewFileInfo(commit *Commit, filePath string, objectPath string, sizeBytes i
   return file_info
 }
 
+func NewDirInfo(commit *Commit, dirPath string, sizeBytes int64) (*FileInfo) {
+  
+  file := &File{Commit: commit, Path: dirPath}
+  dir_info := &FileInfo{
+    File: file, 
+    FileType: "DIR",
+    SizeBytes: sizeBytes} 
+
+  return dir_info
+}
 
 
 

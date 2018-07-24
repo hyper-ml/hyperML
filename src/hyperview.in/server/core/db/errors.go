@@ -1,11 +1,13 @@
 package db
 
 import (
-//	"fmt"
+  "fmt"
 )
 
+
+
 // Custom error when record is not found 
-/*type ErrRecNotFound struct {
+type ErrRecNotFound struct {
 	Type string
 	Key string
 }
@@ -15,18 +17,24 @@ func (e ErrRecNotFound) Error() string {
 }
 
 func IsErrRecNotFound(e error) bool {
-  _, ok := e.(IsErrRecNotFound)
+  _, ok := e.(ErrRecNotFound)
   return ok
 }
 
 // Error when key exists when it shouldnt 
-type ErrRecFound struct {
+type ErrRecAlreadyExists struct {
   Type string
   Key  string
 }
 
+func (e ErrRecAlreadyExists) Error() string {
+  return fmt.Sprintf("%s %s not found", e.Type, e.Key)
+}
+
 
 func IsErrRecFound(e error) bool {
-  _, ok := e.(ErrRecFound)
+  _, ok := e.(ErrRecAlreadyExists)
   return ok
-}*/
+}
+
+

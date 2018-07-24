@@ -7,6 +7,8 @@ import (
   "time"
   "strconv"
   "hyperview.in/server/core/storage"
+  "hyperview.in/server/core/db"
+  "hyperview.in/server/core/workspace"
   "hyperview.in/server/base"
 
 )
@@ -17,13 +19,18 @@ type ServerContext struct {
 	statsTicker *time.Ticker
 	HTTPClient  *http.Client
   objectAPI storage.StorageServer
+  databaseContext *db.DatabaseContext
+  workspaceApi workspace.ApiServer
+  vfs *workspace.VfsServer
+  tasker *tasks.Tasker
 }
 
 // TODO: add error logging and response
 // accessed by HTTP handlers so needs to be thread safe 
 func NewServerContext(config *ServerConfig) *ServerContext{
 
-  dir := "test_dir"
+  dir := config.BaseDir
+
   cacheStr := base.GetEnv("OBJECT_CACHE_BYTES")
   var cacheBytes int64
   var err error
@@ -36,12 +43,20 @@ func NewServerContext(config *ServerConfig) *ServerContext{
   }
 
   //TODO: add config variable for storage option
-  oapi, _ := storage.NewStorageServer(dir, cacheBytes, "GCS")  
+  oapi, _ := storage.NewObjectAPI(dir, cacheBytes, "GCS") 
+  dbc, err := db.NewDatabaseContext(config.DatabaseConfig.Name, config.DatabaseConfig.User, config.DatabaseConfig.Pass) 
+  ws_api, err := workspace.NewApiServer(dbc, oapi)
+  vfs := workspace.NewVfsServer(dbc, oapi)
+  tasker := tasks.NewShellTasker(dbc)
 
   sc := &ServerContext{
     config: config,
     HTTPClient: http.DefaultClient,
     objectAPI: oapi,
+    workspaceApi: ws_api,
+    databaseContext: dbc,
+    vfs: vfs,
+    tasker: tasker,
   }
   return sc
 }

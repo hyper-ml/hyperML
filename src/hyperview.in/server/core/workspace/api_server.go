@@ -3,34 +3,43 @@ package workspace
 import (
   "io"
   "fmt"
-  "time"
   "golang.org/x/net/context"
   "hyperview.in/server/base"
-  "hyperview.in/server/core/utils"
-  "hyperview.in/server/core/db"
+  task_pkg "hyperview.in/server/core/tasks"
+  db_pkg "hyperview.in/server/core/db"
   "hyperview.in/server/core/storage"
 
 )
 
+type ApiServer interface { 
+  GetRepoInfo(repoName string) (*RepoInfo, error) 
+  GetBranchInfo(repoName string, branchName string) (*BranchInfo, error)
+  GetCommitInfo(repoName string, commitId string) (*CommitInfo, error) 
+  GetFileInfo(repoName string, commitId string, filePath string) (*FileInfo, error)
+  DownloadRepo(repoName string) (*RepoInfo, *BranchInfo, *CommitInfo, *FileMap, error)
 
+  PutFile(repoName string, commitId string, fpath string, reader io.Reader) (*FileInfo, int64, error)
+
+  CreateTask(config *task_pkg.TaskConfig) (*Task, error)
+}
 
 type apiServer struct {
 	version string
   ctx context.Context
-  db *db.DatabaseContext
+  db *db_pkg.DatabaseContext
   q *queryServer
-  objApiWrapper *ObjApiWrapper
+  objWrapper *ObjWrapper 
 }
 
-func NewApiServer(db *db.DatabaseContext, oapi storage.ObjectAPIServer) (*apiServer, error) {
-	return &apiServer{
+func NewApiServer(db *db_pkg.DatabaseContext, oapi storage.ObjectAPIServer) (*apiServer, error) {
+  return &apiServer{
     version: "0.1", 
     ctx: context.Background(),
     db: db, 
     q: &queryServer{
       db: db,
     },
-    objApiWrapper: &ObjApiWrapper{
+    objWrapper: &ObjWrapper{
       api: oapi,
     },
   }, nil
@@ -67,151 +76,26 @@ func (a *apiServer) RemoveRepo(name string) error {
 func (a *apiServer) GetRepo(name string) (*RepoInfo, error) {
   return a.q.GetRepoInfo(name)
 }
+ 
 
-
-func (a *apiServer) addMasterBranch(repo *Repo, commit *Commit) (*BranchInfo, error) {
-  var err error 
-  var repo_info *RepoInfo
-  
-  branch := &Branch {
-    Name: "master",
-    Repo: repo,
-  }
-  branch_info := &BranchInfo{
-    Branch: branch,
-    Head: commit,
-  }
-
-  err = a.q.InsertBranchInfo(repo.Name, "master", branch_info)
-
+func (a *apiServer) StartCommit(repoName string) (commitId string, err error) {
+  ct, err := NewCommitTxn(repoName, "", a.db)
   if err != nil {
-    return nil, err
-  }
-
-  // update repoinfo 
-  repo_info, err = a.q.GetRepoInfo(repo.Name)
-  repo_info.Branch = branch
-
-  //TODO: send context of error
-  err = a.q.UpdateRepoInfo(repo.Name, repo_info)
-
-  if err != nil {
-    return nil, err
-  }
-
-  return branch_info, err
-}
-
-//TODO: copy file tree to new commit 
-func (a *apiServer) addCommit(repo *Repo, parent_commit_info *CommitInfo) (*Commit, error) {
-  commit_id := utils.NewUUID()
-  commit_key:= REPO_KEY_PREFIX + repo.Name + ":commit:"+ commit_id
-  commit := &Commit {
-    Id: commit_id,
-    Repo: repo,
-  }
-
-  var initFileMap = make(map[string]*File)
-
-  if parent_commit_info != nil {
-    initFileMap = parent_commit_info.FileMap
-  } 
-
-  commitInfo := &CommitInfo {
-    Commit: commit,
-    Parent_commit: parent_commit_info.Commit,
-    Started: time.Now(),
-    FileMap: initFileMap,
-  }
-
-  return commit, a.db.Insert(commit_key, commitInfo)
-}
-
-func (a *apiServer) scoopHead(branchInfo *BranchInfo, commit *Commit) error {
-  branch := branchInfo.Branch
-  repo := branchInfo.Branch.Repo
-
-  branchInfo.Head = commit
-
-  err:= a.q.UpdateBranchInfo(repo.Name, branch.Name, branchInfo)
-
-  return err
-}
-
-func (a *apiServer) InitCommit(repoName string) (string, error) {
-  var err error 
-  var branch_info *BranchInfo
-  var repo_info *RepoInfo
-  var commit *Commit
-  var parent_commit_info *CommitInfo
-
-  repo_info, err = a.q.GetRepoInfo(repoName)
-
-  if (err !=nil) {
-    base.Log("InitiateCommit: Could not fetch repo with given name %s", repoName)
     return "", err
   }
-
-  // if this is first ever commit. create master branch
-  if repo_info.Branch == nil {
-    
-    // add master branch
-    branch_info, err = a.addMasterBranch(repo_info.Repo, nil)
-
-  } else {
-    
-    branch_info, err = a.q.GetBranchInfo(repoName, "master")
-
-    // check if there is pending commit 
-    if branch_info.Head != nil {
-
-      parent_commit_info, err = a.q.GetCommitInfoById(repoName, branch_info.Head.Id)
-      
-      if parent_commit_info.Finished.IsZero() {
-        return "", fmt.Errorf("There is a pending commit against this repo")
-      }
-    }
-  }
-
-  if branch_info != nil {
-    // add commit with current head as parent 
-    commit, err = a.addCommit(repo_info.Repo, parent_commit_info)
-
-    // update branch head with new commit  
-    err = a.scoopHead(branch_info, commit)
-  }
-
-  if err != nil {
-    return "", fmt.Errorf("Failed to create or retrieve master branch: %s", err)
-  }
-  
-  if commit != nil {
-    return commit.Id, nil
-  }
-
-  return "", err
+  return ct.Start() 
 }
 
-func (a *apiServer) finishCommit(repoName string, commitId string) error {
-
-  commit_info, err := a.q.GetCommitInfoById(repoName, commitId)
-  if (err !=nil) {
-    base.Log("finishCommit: Could not fetch commit for repo %s with commit %s", repoName, commitId)
+func (a *apiServer) EndCommit(repoName string, commitId string) (error) {
+  ct, err := NewCommitTxn(repoName, commitId, a.db)
+  if err != nil {
     return err
   }
-
-  if commit_info.Finished.IsZero() {
-    commit_info.Finished = time.Now()
-    err = a.q.UpdateCommitInfo(repoName, commitId, commit_info)
-    return err  
-  } else {
-    base.Log("finishCommit: No open commit for this repo", repoName)
-    return fmt.Errorf("No open commit for this repo: %s", repoName)
-  }
-  
+  return ct.End()
 }
 
-func (a *apiServer) CloseCommit(repoName string) error {
+
+func (a *apiServer) CloseOpenCommit(repoName string) error {
   var branch_info *BranchInfo
   var err error 
 
@@ -229,31 +113,148 @@ func (a *apiServer) CloseCommit(repoName string) error {
     return fmt.Errorf("No commits in this repo")
   } 
 
-  return a.finishCommit(repoName, branch_info.Head.Id)
+  return a.EndCommit(repoName, branch_info.Head.Id)
 }
 
-func (a *apiServer) AddFileToRepo(repoName string, path string, reader io.Reader) (int, error) {
+func (a *apiServer) IsOpenCommit(repoName string, commitId string, fpath string) bool {
+  ct, _ := NewCommitTxn(repoName, commitId, a.db)
+  return ct.IsOpenCommit()
+}
+ 
+// TODO: putfile by hash
+
+
+// put file by reader
+func (a *apiServer) PutFile(repoName string, commitId string, fpath string, reader io.Reader) (*FileInfo, int64, error) {
+   
+  var size int64 
+  var err error  
+
+  ct, err := NewCommitTxn(repoName, commitId, a.db)
+  if err != nil {
+    base.Log("[apiServer.PutFile] Failed to create commit txn", err)
+    return nil, 0, err
+  }
+
+  // check if commit is open 
+  if ct.IsOpenCommit() == false {
+    return nil, 0, fmt.Errorf("[apiServer.PutFile] PutFile requires an open commit. Params: %s %s %s", repoName, commitId, fpath)
+  }
+
+  file_info, err := a.q.GetFileInfo(repoName, commitId, fpath)
+  
+  if err != nil {
+    if !db_pkg.IsErrRecNotFound(err) {
+      base.Log("[apiServer.PutFile] Failed to retrieve File Info", repoName, commitId, fpath, err)
+      return nil, 0, err
+    }
+  } 
+  
+  if file_info.Object != nil { 
+    
+    base.Debug("[apiServer.PutFile] Found file_info. Updating object. ", file_info.Object.Hash)
+    object_hash := file_info.Object.Hash 
+    
+    new_hash, chksum, size, err :=  a.objWrapper.AppendObject(object_hash, reader) 
+    base.Debug("[apiServer.PutFile] Object updated: ", new_hash, chksum)
+
+    if err != nil {
+      base.Log("[apiServer.PutFile] Failed to write object on server", err)
+      return nil, 0, err
+    } 
+    
+    // TODO: append should add to size or pull size from storage 
+    file_info.SizeBytes = size
+
+    //TODO: update file_info 
+    return file_info, size, nil
+  } 
+ 
+  // in case object doesnt exist then add
+  base.Debug("[apiServer.PutFile] This is a new file for commit. Creating storage object: ")
+  new_hash, cs, size, err :=  a.objWrapper.CreateObject(reader) 
+  
+  if err!= nil {
+    base.Log("[apiServer.PutFile] New Object creation failed: ", new_hash, cs, size, err)
+    return nil, 0, err
+  }
+
+  base.Debug("[apiServer.PutFile] Storage object created. Adding file to commit map - ", new_hash)
+  f_info, err := ct.AddFile(fpath, new_hash, size, cs)
+  if err != nil {
+    base.Log("[apiServer.PutFile] Failed to add file to commit log", fpath, new_hash, size)
+    return nil, 0, err
+  }
+
+  return f_info, size, nil 
+}
+ 
+
+func (a *apiServer) AddFileToRepo(repoName string, path string, reader io.Reader) (int64, error) {
   // find master branch and commit 
   // raise error if no open commit 
-
+  var size int64
   repo_info, err := a.q.GetRepoInfo(repoName)
 
   if err != nil {
     base.Log("Invalid Repo - %s", repoName)
     return 0, err
   }
+
+ 
+  // create object in store first 
+  objName, cs, size, err :=  a.objWrapper.CreateObject(reader) 
+  if err != nil {
+    base.Log("Failed to write object on server", err)
+    return 0, err
+  }
+
+  branch_info, err := a.q.GetBranchInfo(repoName, repo_info.Branch.Name)
+
+  // add object metadat to DB
+  ct, err := NewCommitTxn(repoName, branch_info.Head.Id, a.db)
+  if err != nil {
+    base.Log("Failed to create commit txn", err)
+    return 0, err
+  }
+
+  f_info, err := ct.AddFile(path, objName, size, cs)
+  
+  if err != nil {
+    base.Log("Failed to create commit record", err)
+    return 0, err
+  }
+  base.Debug("File Added to commit:", &f_info)
+
+  return size, nil
+}
+
+
+
+func (a *apiServer) DownloadRepo(repoName string) (*RepoInfo, *BranchInfo, *CommitInfo, *FileMap, error) {
+  
+  repo_info, err := a.q.GetRepoInfo(repoName)
+  if err != nil {
+    base.Log("Invalid Repo - %s", repoName)
+    return nil, nil, nil, nil, err
+  }
+
   branch_info, err := a.q.GetBranchInfo(repoName, repo_info.Branch.Name)
   commit_head :=branch_info.Head.Id
+  commit_info, err:= a.GetCommitInfo(repoName, commit_head)
 
-  commit_info, err := a.q.GetCommitInfoById(repoName, commit_head) 
+  fmap, err:= a.q.GetFileMap(repoName, commit_head)
 
-  if !commit_info.Finished.IsZero() {
-    return 0, fmt.Errorf("This repo has no open commit. Please initialize commit before adding files.")
-  } 
+  return repo_info, branch_info, commit_info, fmap, nil
 
-  file_info, err := a.objApiWrapper.PutObject(commit_info.Commit, path, reader, false)
-
-  err = a.q.UpsertFileInfo(repoName, commit_head, file_info) 
-
-  return 0, nil
 }
+
+
+
+
+
+
+
+
+
+

@@ -8,6 +8,7 @@ import (
   "errors"
   "io"
   "os"
+  "os/exec"
   "path/filepath"
   "runtime"
   "strconv"
@@ -140,7 +141,7 @@ func Command(name string, arg ...string) *Cmd {
     Args: append([]string{name}, arg...),
   }
   if filepath.Base(name) == name {
-    if lp, err := LookPath(name); err != nil {
+    if lp, err := exec.LookPath(name); err != nil {
       cmd.lookPathErr = err
     } else {
       cmd.Path = lp
@@ -299,17 +300,17 @@ func lookExtensions(path, dir string) (string, error) {
     path = filepath.Join(".", path)
   }
   if dir == "" {
-    return LookPath(path)
+    return exec.LookPath(path)
   }
   if filepath.VolumeName(path) != "" {
-    return LookPath(path)
+    return exec.LookPath(path)
   }
   if len(path) > 1 && os.IsPathSeparator(path[0]) {
-    return LookPath(path)
+    return exec.LookPath(path)
   }
   dirandpath := filepath.Join(dir, path)
   // We assume that LookPath will only add file extension.
-  lp, err := LookPath(dirandpath)
+  lp, err := exec.LookPath(dirandpath)
   if err != nil {
     return "", err
   }
@@ -470,10 +471,11 @@ func (c *Cmd) Wait() error {
 
 // custom method to override wait() logic
 // related to :https://github.com/golang/go/issues/18874
-func (c *Cmd) WaitIOClose() error {
+func (c *Cmd) WaitForIOClose(state *os.ProcessState, err error) error {
   if c.waitDone != nil {
     close(c.waitDone)
   }
+
   c.ProcessState = state
 
   if err != nil {

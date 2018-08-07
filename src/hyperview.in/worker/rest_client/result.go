@@ -20,19 +20,20 @@ func NewResult(body []byte, contentType string, err error, statusCode int) Resul
   var body_json map[string]interface{}
   var ret_error error
   var reason string 
-  
+  base.Debug("[result.NewResult] statusCode: ", statusCode)
+
   if statusCode > 201 && contentType == "application/json" { 
     err = json.Unmarshal(body, &body_json)
     err_string, _ := body_json["error"].(string)
+    base.Debug("[result.NewResult] err_string: ", err_string)
     ret_error = fmt.Errorf(err_string)
     reason = body_json["reason"].(string)
-
   } 
 
   if ret_error == nil {
     ret_error = err
   }    
-  
+  base.Debug("[result.NewResult] ret_error: ", ret_error)
 
   return Result {
     body: body,
@@ -60,6 +61,8 @@ func (r Result) Raw() ([]byte, error) {
   if r.reason != "" {
     return r.body, fmt.Errorf(r.err.Error() + r.reason)
   }
+  base.Debug("[Result.Raw] Result: ", r.reason, r.err)
+
   return r.body, r.err
 }
 

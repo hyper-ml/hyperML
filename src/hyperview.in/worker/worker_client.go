@@ -7,18 +7,20 @@ import (
   "fmt"
   "net/url" 
   "encoding/json"
-  "strconv"
-  "io"
-  "bytes" 
-  "io/ioutil"
+  //"strconv"
+  //"io"
+  //"bytes" 
+  //"io/ioutil"
 
   "hyperview.in/server/base" 
 
   "hyperview.in/worker/config" 
   "hyperview.in/worker/rest_client" 
+  //tsk "hyperview.in/server/core/tasks"
+  flw "hyperview.in/server/core/flow"
   ws "hyperview.in/server/core/workspace"
 
-  local_schema "hyperview.in/worker/schema"
+  //local_schema "hyperview.in/worker/schema"
 )
 
 
@@ -35,19 +37,30 @@ type ServerConfig struct {
 type WorkerClient struct {
 
   // Rest Client to fetch info from server   
-  RepoInfo rest_client.Interface
+  RepoAttrs rest_client.Interface
 
   // Rest client for commit info
-  CommitInfo rest_client.Interface
+  CommitAttrs rest_client.Interface
+
+  // Rest client for commit map
+  CommitMap rest_client.Interface
 
   // Rest client for branch info
-  BranchInfo rest_client.Interface
+  BranchAttrs rest_client.Interface
 
   // File Info client
-  FileInfo rest_client.Interface
+  FileAttrs rest_client.Interface
 
   // object client
   ContentIo rest_client.Interface
+
+  // task attributes TODO: remove this 
+  FlowAttrs rest_client.Interface
+
+  //worker client
+
+  WorkerAttrs rest_client.Interface
+
 
   // Virtual FS Client 
   vfs rest_client.Interface
@@ -55,39 +68,60 @@ type WorkerClient struct {
   //TODO: add stats 
 }
 
-func NewWorkerClient() (*WorkerClient, error) {
-  
+func NewWorkerClient(serverAddr string) (*WorkerClient, error) {
+  var server_addr *url.URL
+
   c, err := config.ReadFromFile()
 
   if err != nil {
     fmt.Println("Failed to read config file")
     c = config.Default()
   } 
-  
-  server_addr, err := url.Parse(c.ServerAddr) 
+
+  if serverAddr != "" {
+    server_addr, err = url.Parse(serverAddr)  
+    
+    if err != nil {
+      base.Log("[NewWorkerClient] Invalid Server address string: ", serverAddr)
+      return nil, err
+    }
+
+  } else {
+    server_addr, err = url.Parse(c.DefaultServerAddr)   
+    
+     if err != nil {
+      base.Log("[NewWorkerClient] Invalid Default server address string: ", c.DefaultServerAddr)
+      return nil, err
+    }
+  }
+
+  repo_attrs, err := rest_client.NewRESTClient(server_addr, c.RepoAttrsUriPath, http.DefaultClient)
   if err != nil {
     return nil, err
   }
 
-  repo_info, err := rest_client.NewRESTClient(server_addr, c.RepoInfoUriPath, http.DefaultClient)
+  commit_attrs, err := rest_client.NewRESTClient(server_addr, c.CommitAttrsUriPath, http.DefaultClient)
   if err != nil {
     return nil, err
   }
 
-  commit_info, err := rest_client.NewRESTClient(server_addr, c.CommitInfoUriPath, http.DefaultClient)
+  commit_map, err := rest_client.NewRESTClient(server_addr, c.CommitMapUriPath, http.DefaultClient)
   if err != nil {
     return nil, err
   }
 
-  branch_info, err := rest_client.NewRESTClient(server_addr, c.BranchInfoUriPath, http.DefaultClient)
+  branch_attr, err := rest_client.NewRESTClient(server_addr, c.BranchAttrsUriPath, http.DefaultClient)
   if err != nil {
     return nil, err
   }
 
-  file_info, err := rest_client.NewRESTClient(server_addr, c.FileInfoUriPath, http.DefaultClient)
+  file_attrs, err := rest_client.NewRESTClient(server_addr, c.FileAttrsUriPath, http.DefaultClient)
   if err != nil {
     return nil, err
   }
+ 
+  flow_attrs, err := rest_client.NewRESTClient(server_addr, c.FlowAttrsUriPath, http.DefaultClient)
+
 
   vfs, err := rest_client.NewRESTClient(server_addr, c.VfsUriPath, http.DefaultClient)
   if err != nil {
@@ -96,22 +130,28 @@ func NewWorkerClient() (*WorkerClient, error) {
 
   contents, err := rest_client.NewRESTClient(server_addr, c.ObjectUriPath, http.DefaultClient)
 
+  worker_attrs, err := rest_client.NewRESTClient(server_addr, c.WorkerUriPath, http.DefaultClient)
+
   return &WorkerClient {
-    RepoInfo: repo_info,
-    BranchInfo: branch_info,
-    CommitInfo: commit_info,
-    FileInfo: file_info,
+    RepoAttrs: repo_attrs,
+    BranchAttrs: branch_attr,
+    CommitAttrs: commit_attrs,
+    FileAttrs: file_attrs,
     vfs: vfs,
     ContentIo: contents,
+    FlowAttrs: flow_attrs,
+    WorkerAttrs: worker_attrs,
+    CommitMap: commit_map,
+
   }, nil
 
 } 
+ 
 
+func (wc *WorkerClient) FetchBranchAttrs(repoName, branchName string) (*ws.BranchAttrs, error) {
+  var branch_attr ws.BranchAttrs
 
-func (wc *WorkerClient) FetchBranchInfo(repoName, branchName string) (*ws.BranchInfo, error) {
-  var branch_info ws.BranchInfo
-
-  brq := wc.BranchInfo.Get() 
+  brq := wc.BranchAttrs.Get() 
   brq.Param("repoName", repoName)
   brq.Param("branchName", branchName)
 
@@ -121,16 +161,16 @@ func (wc *WorkerClient) FetchBranchInfo(repoName, branchName string) (*ws.Branch
     return nil, err
   } 
 
-  branch_info =  ws.BranchInfo{}
-  err = json.Unmarshal(body, &branch_info) 
+  branch_attr =  ws.BranchAttrs{}
+  err = json.Unmarshal(body, &branch_attr) 
 
-  return &branch_info, nil
+  return &branch_attr, nil
 }
 
-func (wc *WorkerClient) FetchCommitInfo(repoName, commitId string) (*ws.CommitInfo, error) {
-  var commit_info ws.CommitInfo
+func (wc *WorkerClient) FetchCommitAttrs(repoName, commitId string) (*ws.CommitAttrs, error) {
+  var commit_attrs ws.CommitAttrs
 
-  crq := wc.CommitInfo.Get() 
+  crq := wc.CommitAttrs.Get() 
   crq.Param("repoName", repoName)
   crq.Param("commitId", commitId)
   resp := crq.Do()
@@ -138,13 +178,29 @@ func (wc *WorkerClient) FetchCommitInfo(repoName, commitId string) (*ws.CommitIn
   if err != nil {
     return nil, err
   }
-  err = json.Unmarshal(body, &commit_info)
-  return &commit_info, nil
+  err = json.Unmarshal(body, &commit_attrs)
+  return &commit_attrs, nil
+}
+
+func (wc *WorkerClient) FetchCommitMap(repoName, commitId string) (*ws.FileMap, error) {
+  var file_map ws.FileMap
+
+  rq := wc.CommitMap.Get()
+  rq.Param("repoName", repoName)
+  rq.Param("commitId", commitId)
+  resp := rq.Do()
+  body, err := resp.Raw()
+  if err != nil {
+    return nil, err
+  }
+
+  err = json.Unmarshal(body, &file_map)
+  return &file_map, nil
 }
  
-func (wc *WorkerClient) FetchFileInfo(repoName string, commitId string, fpath string) (*ws.FileInfo, error){
-  var file_info *ws.FileInfo 
-  crq := wc.FileInfo.Verb("GET") 
+func (wc *WorkerClient) FetchFileAttrs(repoName string, commitId string, fpath string) (*ws.FileAttrs, error){
+  var file_attrs *ws.FileAttrs 
+  crq := wc.FileAttrs.Verb("GET") 
   crq.Param("repoName", repoName)
   crq.Param("commitId", commitId)
   crq.Param("path", fpath)
@@ -155,175 +211,44 @@ func (wc *WorkerClient) FetchFileInfo(repoName string, commitId string, fpath st
     return nil, err
   }
   
-  err = json.Unmarshal(body, &file_info)
-  return file_info, nil
+  err = json.Unmarshal(body, &file_attrs)
+  return file_attrs, nil
 
 }
 
-func (wc *WorkerClient) ListDir(reponame string, commitId string, path string) (map[string]*ws.FileInfo, error) {
-  //var file_list map[string]*ws.FileInfo
+func (wc *WorkerClient) FetchFlowAttrs(flowId string) (*flw.FlowAttrs, error){
+  var flow_attrs *flw.FlowAttrs 
+  flow_rq := wc.FlowAttrs.Verb("GET") 
+  flow_rq.Param("flowId", flowId) 
 
-  crq := wc.vfs.VerbSp("GET", "list_dir") 
-  crq.Param("repoName", reponame)
-  crq.Param("commitId", commitId)
-  crq.Param("path", path)
-
-  resp := crq.Do()
-  body, err := resp.Raw()
+  resp := flow_rq.Do()
+  flow_service_resp, err := resp.Raw()
   if err != nil {
     return nil, err
   }
-  //base.Debug("Received list dir body:", string(body))
-  finfo_map := ws.FileInfoMap{}
-  err = json.Unmarshal(body, &finfo_map)
-  //base.Debug("Received list dir body:", finfo_map)
   
-  //return &commit_info, nil
-  return finfo_map.Entries, nil
+  err = json.Unmarshal(flow_service_resp, &flow_attrs)
+  return flow_attrs, nil
 }
 
 
 
-func (wc *WorkerClient) LookupFile(reponame string, commitId string, p string) (*ws.FileInfo, error) {
-  //var file_list map[string]*ws.FileInfo
 
-  crq := wc.vfs.VerbSp("GET", "lookup") 
-  crq.Param("repoName", reponame)
-  crq.Param("commitId", commitId)
-  crq.Param("path", p)
+func (wc *WorkerClient) RegisterWorker(flowId string, taskId string, ip string) (*flw.WorkerAttrs, error) {
+  req := wc.WorkerAttrs.VerbSp("POST", "register")
+  req.Param("flowId", flowId)
+  req.Param("taskId", taskId)
+  req.Param("ip", ip)
 
-  resp := crq.Do()
-  body, err := resp.Raw()
+  response, err := req.Do().Raw()
 
   if err != nil {
-    base.Log("[WorkerClient.LookupFile] Error looking up file:", reponame, commitId, p, err)
+    base.Log("[WorkerClient.RegisterWorker] Failed to register worker for flow: ", flowId, taskId, err)
     return nil, err
   }
-
-  //base.Debug("Received list dir body:", string(body))
   
-  f_info := ws.FileInfo{}
-  err = json.Unmarshal(body, &f_info)
-    
-  return &f_info, nil
+  worker_attrs:= flw.WorkerAttrs{}
+  err = json.Unmarshal(response, &worker_attrs)
+
+  return &worker_attrs, err
 }
-
-func (wc *WorkerClient) GetFileObject(repoName string, commitId string, fpath string, offset int64, size int64, writebuf io.Writer) error {
-  base.Debug("GetFileObject(): repoName, commitId, fpath, offset, size: ")
-  base.Debug(repoName, commitId, fpath, offset, size)
-  var err error
-  var n int
-
-  r := wc.vfs.VerbSp("GET", "get_file")
-  r.Param("repoName", repoName)
-  r.Param("commitId", commitId)
-  r.Param("filePath", fpath)
-  r.Param("offset", strconv.Itoa(int(offset)))
-  r.Param("size", strconv.Itoa(int(size)))
-
-  obj_reader, err:= r.ReadResponse() 
-  
-  if err != nil {
-    base.Log("Failed to get handle on HTTP Request during GetFileObject:", commitId, fpath)
-    return err
-  }
-
-  w, err := ioutil.ReadAll(obj_reader)
-  base.Log("w:", string(w))
-  
-  defer obj_reader.Close()
-
-  buffer := make([]byte, 1024) //2 * 1024 * 1024
-
-  for {
-    n, err = obj_reader.Read(buffer)
-
-    if err != nil {
-      //TODO: handle ErrUnexpectedEOF
-      if err == io.EOF && n == 0 {
-        return nil
-      }
-      if err != io.EOF {
-        return err
-      }
-    }   
-
-    //TODO: return bw from this method
-    
-    _, err := writebuf.Write(buffer[:n]) 
-    if err != nil {
-      base.Log("Failed to pull object file into local writer", commitId, fpath)
-      return err
-    }
-  }
-
-  return nil
-
-}
-
-// add mutex to synchronize writes   
-type httpWriter struct {
-  r *rest_client.Request
-  object_hash string
-}
-
-func (h *httpWriter) setHash(hash string) {
-  h.object_hash = hash 
-}
-
-// TODO: Write at will be better. But figure it out later
-//
-func (h *httpWriter) Write(p []byte) (n int, err error) {
- 
-  h.r.Param("size", strconv.Itoa(len(p)))
-  h.r.Param("hash", h.object_hash)
-
-  _ = h.r.SetBodyReader(ioutil.NopCloser(bytes.NewReader(p)))
-
-  resp := h.r.Do()
-
-  if resp.Error()!= nil {
-    base.Log("Encountered an error while writing object to server: ", h.object_hash, err)
-    _= h.r.PrintParams()
-    return 0, err
-  } 
-
-  pfr := local_schema.PutFileResponse{}
-  err = json.Unmarshal(resp.Body(), &pfr)
-
-  if err != nil {
-    base.Log("Invalid response from server for PutFileResponse:", err)
-    return 0, err
-  }
-
-  if pfr.Error != "" {
-    return 0, fmt.Errorf(pfr.Error)
-  }
-
-  if pfr.FileInfo.Object != nil {   
-    base.Debug("Received File Info. Caching object hash with writer for future use: ", pfr.FileInfo.Object.Hash)
-    h.setHash(pfr.FileInfo.Object.Hash) 
-  } 
-
-  return int(pfr.Written), nil
-}
-
-func (h *httpWriter) Close() error {
-  // Close body here?  
-  return nil
-}
- 
-
-func (wc *WorkerClient) PutObjectWriter(repoName string, commitId string, fpath string) (io.WriteCloser, error) {
-  r := wc.vfs.VerbSp("PUT", "put_file")
-  r.Param("repoName", repoName)
-  r.Param("commitId", commitId)
-  r.Param("path", fpath)
-  
-  hw := &httpWriter {
-    r: r,
-  }  
-
-  return hw, nil
-}
- 

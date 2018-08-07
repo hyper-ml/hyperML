@@ -12,16 +12,16 @@ type GetRepoResponse struct {
 }
  
 
-type GetRepoInfoResponse struct {
-  RepoInfo ws.RepoInfo `json:"repo_info"`
-  BranchInfo ws.BranchInfo `json:"branch_info"` 
-  CommitInfo ws.CommitInfo `json:"commit_info"`
+type GetRepoAttrsResponse struct {
+  RepoAttrs ws.RepoAttrs `json:"repo_attrs"`
+  BranchAttrs ws.BranchAttrs `json:"branch_attr"` 
+  CommitAttrs ws.CommitAttrs `json:"commit_attrs"`
   FileMap map[string]ws.File `json:"file_map"`
 }
  
 
 type PutFileResponse struct {
-  FileInfo *ws.FileInfo `json:"file_info"`
+  FileAttrs *ws.FileAttrs `json:"file_attrs"`
   Written int64  `json:"written"`
   Error string `json:"error"`
 }

@@ -19,17 +19,23 @@ func createHandler(sc *ServerContext, privs handlerPrivs) (*mux.Router) {
   
   // api getters for meta 
   router.Handle("/repo", makeHandler(sc, privs, (*handler).handleGetRepo)).Methods("GET")
-  router.Handle("/repo_info", makeHandler(sc, privs, (*handler).handleGetRepoInfo)).Methods("GET")
-  router.Handle("/branch_info", makeHandler(sc, privs, (*handler).handleGetBranchInfo)).Methods("GET")
-  router.Handle("/commit_info", makeHandler(sc, privs, (*handler).handleGetCommitInfo)).Methods("GET")
-  router.Handle("/file_info", makeHandler(sc, privs, (*handler).handleGetFileInfo)).Methods("GET")
+  router.Handle("/repo_attrs", makeHandler(sc, privs, (*handler).handleGetRepoAttrs)).Methods("GET")
+  router.Handle("/branch_attr", makeHandler(sc, privs, (*handler).handleGetBranchAttrs)).Methods("GET")
+  router.Handle("/commit_attrs", makeHandler(sc, privs, (*handler).handleGetCommitAttrs)).Methods("GET")
+  router.Handle("/file_attrs", makeHandler(sc, privs, (*handler).handleGetFileAttrs)).Methods("GET")
+  router.Handle("/commit_map", makeHandler(sc, privs, (*handler).handleGetCommitMap)).Methods("GET")
+  
+  // api for tasks and workers
+  router.Handle("/tasks", makeHandler(sc, privs, (*handler).GetTaskAttrs)).Methods("GET")
+  router.Handle("/worker/register", makeHandler(sc, privs, (*handler).RegisterWorker)).Methods("POST")
+  router.Handle("/worker/unregister", makeHandler(sc, privs, (*handler).UnregisterWorker)).Methods("POST")
 
   //vfs methods
   router.Handle("/vfs/list_dir", makeHandler(sc, privs, (*handler).handleListDir)).Methods("GET")
   router.Handle("/vfs/lookup",  makeHandler(sc, privs, (*handler).handleFileLookup)).Methods("GET") 
   router.Handle("/vfs/put_file",  makeHandler(sc, privs, (*handler).handleVfsPutFile)).Methods("PUT") 
   router.Handle("/vfs/get_file",  makeHandler(sc, privs, (*handler).handleVfsGetFile)).Methods("GET") 
-  
+    
   return router
 }
 

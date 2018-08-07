@@ -163,12 +163,12 @@ func Test_CloseCommit(t *testing.T) {
 
 func Test_DownloadRepo(t *testing.T) {
   api, _ := getAPIServer()
-  commit_info, err := api.DownloadRepo(TEST_REPO_NAME)  
+  commit_attrs, err := api.DownloadRepo(TEST_REPO_NAME)  
   if err != nil {
     fmt.Println("Failed to retrieve repo", err)
     t.Fatalf("Failed to retrieve repo")
   } 
-  b, _ := json.Marshal(commit_info)
-  fmt.Println("commit_info:", string(b)) 
+  b, _ := json.Marshal(commit_attrs)
+  fmt.Println("commit_attrs:", string(b)) 
 
 }  */

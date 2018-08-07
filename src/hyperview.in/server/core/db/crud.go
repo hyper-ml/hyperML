@@ -11,7 +11,6 @@ import (
 
 type Body map[string]interface{}
 
-
 func (d *DatabaseContext) Insert(key string, value interface{}) error{
 	tx, err := d.conn.Begin()
   if err != nil {
@@ -34,6 +33,7 @@ func (d *DatabaseContext) Insert(key string, value interface{}) error{
     return err
   }
 
+  // really bad hack to capture flow chagnes 
   return tx.Commit()
 }
 
@@ -44,6 +44,7 @@ func (d *DatabaseContext) Upsert(key string, value interface{}) error{
   } else {
     return d.Insert(key, value)
   }
+
 }
 
 func (d *DatabaseContext) DeleteIfExists(key string) error{
@@ -187,8 +188,42 @@ func (d *DatabaseContext) Update(key string, value interface{}) error {
     tx.Rollback()
     return err
   }
-
+ 
   return tx.Commit()
 }
 
+// a bad hack to enable tracking of  updates 
+//
+func (d *DatabaseContext) UpdateAndTrack(key string, value interface{}, template interface{}) error {
+  tx, err := d.conn.Begin()
+  if err != nil {
+    return err
+  }
+
+  stmt, err := tx.Prepare("UPDATE ws_collections SET value=$1 WHERE key=$2")
+  if err != nil {
+    return err
+  }
+
+  //defer stmt.Close()
+  json_value, err := json.Marshal(value)
+  if (err != nil) {
+    return err
+  }
+
+  if _, err = stmt.Exec(json_value, key); err != nil {
+    tx.Rollback()
+    return err
+  }
+  err = tx.Commit()
+  if err != nil {
+    return err
+  }
+
+  if d.Listener != nil && template != nil {
+    d.Listener.TrackEvent(value, template)
+  }
+
+  return nil
+}
 

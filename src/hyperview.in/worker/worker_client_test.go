@@ -33,7 +33,7 @@ func Test_GetRepo(t *testing.T) {
     t.Fatalf("Failed to create ApiClient")
   }
 
-  repo_request:= client.RepoInfo.Verb("GET")
+  repo_request:= client.RepoAttrs.Verb("GET")
   repo_request.Param("repoName", TEST_REPO_NAME)
   result := repo_request.Do() 
 
@@ -85,7 +85,7 @@ func Test_GetFileObject(t *testing.T) {
   fmt.Println("output of get file ob:", buff.String())
 }
 
-
+/*
 func Test_PutFileObject(t *testing.T) {
    client, err := NewWorkerClient()
   if err != nil {
@@ -95,4 +95,4 @@ func Test_PutFileObject(t *testing.T) {
 
   err = client.PutFileObject()
 
-}
+}*/

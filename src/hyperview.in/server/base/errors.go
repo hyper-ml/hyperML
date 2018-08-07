@@ -36,6 +36,8 @@ func HTTPErrorf(status int, format string, args ...interface{}) *HTTPError {
 }
 
 func ErrorToHTTPStatus(err error) (int, string) {
+  Debug("[errors.ErrorToHTTPStatus] :", err)
+
   if err == nil {
     return 200, "OK"
   }

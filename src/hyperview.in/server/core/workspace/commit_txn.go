@@ -18,26 +18,26 @@ import(
 type commitTxn struct {
   repoName string
   branchName string
-  commitInfo *CommitInfo 
+  commitInfo *CommitAttrs 
   db *db.DatabaseContext
   q *queryServer
 }
 
 
 func NewCommitTxn(repoName string, commitId string, db *db.DatabaseContext) (*commitTxn, error) {
-  var commit_info *CommitInfo
+  var commit_attrs *CommitAttrs
   var err error 
   q:= NewQueryServer(db)
 
   if commitId != "" {
-    commit_info, err = q.GetCommitInfoById(repoName, commitId)
+    commit_attrs, err = q.GetCommitAttrsById(repoName, commitId)
     if (err != nil ){
       return nil, fmt.Errorf("Invalid Commit Id or Repo Name: %s", err)
     }
   }
 
   return &commitTxn {
-    commitInfo: commit_info,
+    commitInfo: commit_attrs,
     repoName: repoName,
     branchName: "master",
     db: db,
@@ -45,7 +45,7 @@ func NewCommitTxn(repoName string, commitId string, db *db.DatabaseContext) (*co
   }, nil
 }
 
-func (ct *commitTxn) setCommitInfo(c *CommitInfo) {
+func (ct *commitTxn) setCommitAttrs(c *CommitAttrs) {
  ct.commitInfo = c 
 }
 
@@ -57,24 +57,24 @@ func (ct *commitTxn) IsOpenCommit() bool {
   return true
 }
 
-func (ct *commitTxn) setCommitInfoByBranch() error {
-  commit_info, err := ct.q.GetCommitInfoByBranch(ct.repoName, ct.branchName)
+func (ct *commitTxn) setCommitAttrsByBranch() error {
+  commit_attrs, err := ct.q.GetCommitAttrsByBranch(ct.repoName, ct.branchName)
   if err != nil {
     return err
   }
-  ct.commitInfo = commit_info
+  ct.commitInfo = commit_attrs
   return nil
 }
 
 func (ct *commitTxn) Start() (string, error) {
 
   var err error 
-  var branch_info *BranchInfo
-  var repo_info *RepoInfo
-  var new_cinfo *CommitInfo
-  var head_cinfo *CommitInfo
+  var branch_attr *BranchAttrs
+  var repo_attrs *RepoAttrs
+  var new_cinfo *CommitAttrs
+  var head_cinfo *CommitAttrs
 
-  repo_info, err = ct.q.GetRepoInfo(ct.repoName)
+  repo_attrs, err = ct.q.GetRepoAttrs(ct.repoName)
 
   if (err !=nil) {
     base.Log("InitiateCommit: Could not fetch repo with given name %s", ct.repoName)
@@ -82,35 +82,35 @@ func (ct *commitTxn) Start() (string, error) {
   }
 
   // if this is first ever commit. create master branch
-  if repo_info.Branch == nil {
+  if repo_attrs.Branch == nil {
     
     // add master branch
-    branch_info, err = ct.addMasterBranch()
+    branch_attr, err = ct.addMasterBranch()
 
   } else {
     
-    branch_info, err = ct.q.GetBranchInfo(ct.repoName, repo_info.Branch.Name)
+    branch_attr, err = ct.q.GetBranchAttrs(ct.repoName, repo_attrs.Branch.Name)
 
     // check if there is a pending commit 
-    if branch_info.Head != nil  {
+    if branch_attr.Head != nil  {
 
-      head_cinfo, err = ct.q.GetCommitInfoById(ct.repoName, branch_info.Head.Id)
+      head_cinfo, err = ct.q.GetCommitAttrsById(ct.repoName, branch_attr.Head.Id)
       
       if head_cinfo.Finished.IsZero() {
         base.Log("There is a pending commit against this repo", head_cinfo)
-        ct.setCommitInfo(head_cinfo)
+        ct.setCommitAttrs(head_cinfo)
         return head_cinfo.Id(), nil
       }
     }
   }
   
-  if branch_info != nil {
+  if branch_attr != nil {
 
     // add commit with current head as parent 
-    new_cinfo, err = ct.addCommit(branch_info.Head)
+    new_cinfo, err = ct.addCommit(branch_attr.Head)
 
     // update branch head with new commit  
-    err = ct.scoopHead(branch_info, new_cinfo.Commit)
+    err = ct.scoopHead(branch_attr, new_cinfo.Commit)
 
     if err != nil {
       //TODO : delete new commit 
@@ -121,16 +121,16 @@ func (ct *commitTxn) Start() (string, error) {
   }
 
   if new_cinfo != nil {
-    ct.setCommitInfo(new_cinfo)
+    ct.setCommitAttrs(new_cinfo)
     return new_cinfo.Id(), err
   }
 
   return "", err
 }
 
-func (ct *commitTxn) addMasterBranch() (*BranchInfo, error) {
+func (ct *commitTxn) addMasterBranch() (*BranchAttrs, error) {
   var err error 
-  //var repo_info *RepoInfo
+  //var repo_attrs *RepoAttrs
 
   repo := &Repo {
     Name: ct.repoName,
@@ -141,12 +141,12 @@ func (ct *commitTxn) addMasterBranch() (*BranchInfo, error) {
     Repo: repo,
   }
 
-  branch_info := &BranchInfo{
+  branch_attr := &BranchAttrs{
     Branch: branch,
     //Head: commit,
   }
 
-  err = ct.q.InsertBranchInfo(repo.Name, ct.branchName, branch_info)
+  err = ct.q.InsertBranchAttrs(repo.Name, ct.branchName, branch_attr)
 
   if err != nil {
     return nil, err
@@ -159,7 +159,7 @@ func (ct *commitTxn) addMasterBranch() (*BranchInfo, error) {
     return nil, err
   }
 
-  return branch_info, err
+  return branch_attr, err
 }
   
 func (ct *commitTxn) addFileMap(commit *Commit, parent *Commit) (error) {
@@ -180,11 +180,11 @@ func (ct *commitTxn) addFileMap(commit *Commit, parent *Commit) (error) {
   return ct.q.InsertFileMap(ct.repoName, commit.Id, fm)
 }
 
-func (ct *commitTxn) addCommit(parent *Commit) (*CommitInfo, error) {
+func (ct *commitTxn) addCommit(parent *Commit) (*CommitAttrs, error) {
   
   fmt.Println("adding file map", parent)
 
-  var commit_info *CommitInfo
+  var commit_attrs *CommitAttrs
   var err error
   
   commit_id := utils.NewUUID()
@@ -195,13 +195,13 @@ func (ct *commitTxn) addCommit(parent *Commit) (*CommitInfo, error) {
     Repo: repo,
   }
 
-  commit_info = &CommitInfo {
+  commit_attrs = &CommitAttrs {
     Commit: commit,
     Parent_commit: parent,
     Started: time.Now(),
   }
 
-  err = ct.q.InsertCommitInfo(ct.repoName, commit_id, commit_info)
+  err = ct.q.InsertCommitAttrs(ct.repoName, commit_id, commit_attrs)
   if err != nil {
     //TODO: may be delete commit info
     return nil, err
@@ -212,16 +212,16 @@ func (ct *commitTxn) addCommit(parent *Commit) (*CommitInfo, error) {
     return nil, err
   }
 
-  return commit_info, err
+  return commit_attrs, err
 }
 
-func (ct *commitTxn) scoopHead(branchInfo *BranchInfo, commit *Commit) error {
+func (ct *commitTxn) scoopHead(branchInfo *BranchAttrs, commit *Commit) error {
   branch := branchInfo.Branch
   repo := branchInfo.Branch.Repo
 
   branchInfo.Head = commit
 
-  err:= ct.q.UpdateBranchInfo(repo.Name, branch.Name, branchInfo)
+  err:= ct.q.UpdateBranchAttrs(repo.Name, branch.Name, branchInfo)
 
   return err
 }
@@ -236,7 +236,7 @@ func (ct *commitTxn) End() error {
 
   if ct.commitInfo.Finished.IsZero() {
     ct.commitInfo.Finished = time.Now()
-    err = ct.q.UpdateCommitInfo(ct.repoName, ct.commitInfo.Id(), ct.commitInfo)
+    err = ct.q.UpdateCommitAttrs(ct.repoName, ct.commitInfo.Id(), ct.commitInfo)
     return err  
   } else {
     base.Log("finishCommit: No open commit for this repo", ct.repoName)
@@ -245,13 +245,13 @@ func (ct *commitTxn) End() error {
   
 }
 
-func (ct *commitTxn) insertFileInfo(filePath string, object string, size int64, cs string) (*FileInfo, error) {
+func (ct *commitTxn) insertFileAttrs(filePath string, object string, size int64, cs string) (*FileAttrs, error) {
   var err error
 
-  file_info := NewFileInfo(ct.commitInfo.Commit, filePath, object, size, cs)
+  file_attrs := NewFileAttrs(ct.commitInfo.Commit, filePath, object, size, cs)
 
   //TODO: get file info in return
-  err = ct.q.UpsertFileInfo(ct.repoName, ct.commitInfo.Id(), filePath, file_info) 
+  err = ct.q.UpsertFileAttrs(ct.repoName, ct.commitInfo.Id(), filePath, file_attrs) 
   if err != nil {
     base.Log("Failed to update file map:", filePath, object, size)
     return nil, err 
@@ -263,14 +263,14 @@ func (ct *commitTxn) insertFileInfo(filePath string, object string, size int64, 
     return nil, err
   }
 
-  return file_info, nil
+  return file_attrs, nil
 }
 
 
-func (ct *commitTxn) insertDirInfo(filePath string, size int64) (*FileInfo, error) {
+func (ct *commitTxn) insertDirInfo(filePath string, size int64) (*FileAttrs, error) {
   var err error
   dir_info := NewDirInfo(ct.commitInfo.Commit, filePath, size)
-  err = ct.q.UpsertFileInfo(ct.repoName, ct.commitInfo.Id(), filePath, dir_info) 
+  err = ct.q.UpsertFileAttrs(ct.repoName, ct.commitInfo.Id(), filePath, dir_info) 
 
   if err != nil {
     return nil, err 
@@ -290,7 +290,7 @@ func (ct *commitTxn) updateFileMap(filePath string) error {
   return ct.q.AddFileToMap(ct.repoName, ct.commitInfo.Id(), newfile)
 }
 
-func (ct *commitTxn) AddFile(filePath string, objectName string, size int64, cs string) (*FileInfo, error) {
+func (ct *commitTxn) AddFile(filePath string, objectName string, size int64, cs string) (*FileAttrs, error) {
 
   if (ct.commitInfo == nil) {
     base.Log("Please initiate commit transaction with start-commit first.", ct.repoName)
@@ -305,10 +305,10 @@ func (ct *commitTxn) AddFile(filePath string, objectName string, size int64, cs 
     return ct.insertDirInfo(filePath, size)
   }
 
-  return ct.insertFileInfo(filePath, objectName, size, cs)
+  return ct.insertFileAttrs(filePath, objectName, size, cs)
 }
 
-func (ct *commitTxn) AddDir(filePath string, size int64) (*FileInfo, error) {
+func (ct *commitTxn) AddDir(filePath string, size int64) (*FileAttrs, error) {
 
   // TODO: get the latest commit info to avoid concurrency issues
   if !ct.commitInfo.Finished.IsZero() {
@@ -327,10 +327,10 @@ func (ct *commitTxn) FlushCommit() error{
 func (ct *commitTxn) Delete() error {
   // delete commit 
   var err error
-  var branch_info *BranchInfo
+  var branch_attr *BranchAttrs
 
   if ct.commitInfo == nil {
-    if err = ct.setCommitInfoByBranch(); err != nil {
+    if err = ct.setCommitAttrsByBranch(); err != nil {
       return err
     }
   }
@@ -340,27 +340,27 @@ func (ct *commitTxn) Delete() error {
   } 
 
   if ct.commitInfo.Parent_commit != nil {
-    branch_info, err = ct.q.GetBranchInfo(ct.repoName, ct.branchName)
+    branch_attr, err = ct.q.GetBranchAttrs(ct.repoName, ct.branchName)
     if err != nil {
       base.Log("Invalid repo or branch name:", ct.repoName, ct.branchName)
       return err
     }
-    if err:= ct.scoopHead(branch_info, ct.commitInfo.Parent_commit); err!= nil {
+    if err:= ct.scoopHead(branch_attr, ct.commitInfo.Parent_commit); err!= nil {
       base.Log("Unable to scoop branch head to parent:", ct.commitInfo.Parent_commit.Id)
       return err
     }
 
   }
 
-  return ct.q.DeleteCommitInfo(ct.repoName, ct.commitInfo.Id())
+  return ct.q.DeleteCommitAttrs(ct.repoName, ct.commitInfo.Id())
 }
 
 
 // list files and sub directories given a directory path
 //
-func (ct *commitTxn) lsDir(list map[string]*File, prefix string) (map[string]*FileInfo, error) {
+func (ct *commitTxn) lsDir(list map[string]*File, prefix string) (map[string]*FileAttrs, error) {
 
-  result:= make(map[string]*FileInfo)
+  result:= make(map[string]*FileAttrs)
   
   /* Commented as client should send root path
   if prefix == "" {
@@ -407,10 +407,10 @@ func (ct *commitTxn) lsDir(list map[string]*File, prefix string) (map[string]*Fi
         if len(path_woslash) > 0 {
 
           if path_woslash == path_util.Base(file.Path) {
-            file_info, err := ct.q.GetFileInfo(file.Commit.Repo.Name, file.Commit.Id, path)
+            file_attrs, err := ct.q.GetFileAttrs(file.Commit.Repo.Name, file.Commit.Id, path)
             
             if err == nil {
-              result[path_woslash] = file_info
+              result[path_woslash] = file_attrs
             } else {
               base.Log("something wrong. File Info missing for file: %s %s %s", file.Commit.Repo.Name, file.Commit.Id, path)
             } 
@@ -432,7 +432,7 @@ func (ct *commitTxn) lsDir(list map[string]*File, prefix string) (map[string]*Fi
 }
 
 // list directory path
-func (ct *commitTxn) ListDir(dirPath string) (map[string]*FileInfo, error) {
+func (ct *commitTxn) ListDir(dirPath string) (map[string]*FileAttrs, error) {
   
   if ct.commitInfo == nil {
     return nil, fmt.Errorf("Missing Commit Info. Please start commit transaction with Id or start a new commit.")
@@ -448,7 +448,7 @@ func (ct *commitTxn) ListDir(dirPath string) (map[string]*FileInfo, error) {
 
 // handle full path or just look at base path?
 
-func (ct *commitTxn) LookupFile(fpath string) (*FileInfo, error) {
+func (ct *commitTxn) LookupFile(fpath string) (*FileAttrs, error) {
 
   if ct.commitInfo == nil {
     return nil, fmt.Errorf("[commitTxn.LookupFile] Missing Commit Info. Please start commit transaction with Id or start a new commit.")
@@ -464,12 +464,12 @@ func (ct *commitTxn) LookupFile(fpath string) (*FileInfo, error) {
   if fe := fm.Entries[fpath]; fe != nil {
     base.Debug("[commitTxn.LookupFile] found file in entries - ", fpath, ct.commitInfo.Id())
 
-    file_info, err := ct.q.GetFileInfo(ct.repoName, fe.Commit.Id, fe.Path)
+    file_attrs, err := ct.q.GetFileAttrs(ct.repoName, fe.Commit.Id, fe.Path)
     
 
     if err == nil {
-      base.Debug("[commitTxn.LookupFile] File Info of file found", file_info.File.Path)
-      return file_info, nil
+      base.Debug("[commitTxn.LookupFile] File Info of file found", file_attrs.File.Path)
+      return file_attrs, nil
     } else if !base.IsErrFileNotFound(err) {
       base.Debug("[commitTxn.LookupFile] Unknown Error while looking for file. ", err)
       return nil, err

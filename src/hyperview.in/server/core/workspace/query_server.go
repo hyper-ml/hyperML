@@ -40,25 +40,25 @@ func (q *queryServer) CheckRepoExists(repoName string) bool {
   return q.db.KeyExists(repo_key)
 }
 
-func (q *queryServer) DeleteRepoInfo(repoName string) error {
+func (q *queryServer) DeleteRepoAttrs(repoName string) error {
   repo_key := q.getRepoKey(repoName)
 
   return q.db.Delete(repo_key)
 }
 
-func (q *queryServer) UpdateRepoInfo(repoName string, repoInfo *RepoInfo) error {
+func (q *queryServer) UpdateRepoAttrs(repoName string, repoInfo *RepoAttrs) error {
   repo_key := q.getRepoKey(repoName)
 
   return q.db.Update(repo_key, repoInfo)
 }
 
 
-func (q *queryServer) GetRepoInfo(name string) (*RepoInfo, error) {
+func (q *queryServer) GetRepoAttrs(name string) (*RepoAttrs, error) {
   var err error
   
   data, err := q.db.Get(REPO_KEY_PREFIX + name)
   
-  repoInfo :=  &RepoInfo{} 
+  repoInfo :=  &RepoAttrs{} 
   err = json.Unmarshal(data, &repoInfo)
   
   return repoInfo, err
@@ -72,23 +72,23 @@ func (q *queryServer) getBranchKey(repoName string, branchName string) string {
   return REPO_KEY_PREFIX + repoName + ":" + BRANCH_KEY_PREFIX + branchName
 }
 
-func (q *queryServer) InsertBranchInfo(repoName string, branchName string, branchInfo *BranchInfo) error{
+func (q *queryServer) InsertBranchAttrs(repoName string, branchName string, branchInfo *BranchAttrs) error{
   branch_key:=  q.getBranchKey(repoName, branchName)
 
   return q.db.Insert(branch_key, branchInfo)
 }
 
-func (q *queryServer) GetBranchInfo(repoName string, branchName string) (*BranchInfo, error) {
+func (q *queryServer) GetBranchAttrs(repoName string, branchName string) (*BranchAttrs, error) {
   var err error
   branch_key:= q.getBranchKey(repoName, branchName)
   data, err := q.db.Get(branch_key)
 
-  branch_info :=  &BranchInfo{} 
-  err = json.Unmarshal(data, &branch_info)
-  return branch_info, err
+  branch_attr :=  &BranchAttrs{} 
+  err = json.Unmarshal(data, &branch_attr)
+  return branch_attr, err
 }
 
-func (q *queryServer) UpdateBranchInfo(repoName string, branchName string, branchInfo *BranchInfo) error {
+func (q *queryServer) UpdateBranchAttrs(repoName string, branchName string, branchInfo *BranchAttrs) error {
   branch_key:=  q.getBranchKey(repoName, branchName)
 
   return q.db.Update(branch_key, branchInfo)  
@@ -103,49 +103,49 @@ func (q *queryServer) getCommitKey(repoName string, commitId string) string {
   return REPO_KEY_PREFIX + repoName + ":" + COMMIT_KEY_PREFIX + commitId
 }
 
-func (q *queryServer) GetCommitInfoById(repoName string, commitId string) (*CommitInfo, error) {
+func (q *queryServer) GetCommitAttrsById(repoName string, commitId string) (*CommitAttrs, error) {
   var err error
   commit_key:= q.getCommitKey(repoName, commitId)
   data, err := q.db.Get(commit_key)
   
-  commit_info :=  &CommitInfo{} 
-  err = json.Unmarshal(data, &commit_info)
-  return commit_info, err
+  commit_attrs :=  &CommitAttrs{} 
+  err = json.Unmarshal(data, &commit_attrs)
+  return commit_attrs, err
 }
 
-func (q *queryServer) GetCommitInfoByBranch(repoName, branchName string) (*CommitInfo, error) {
+func (q *queryServer) GetCommitAttrsByBranch(repoName, branchName string) (*CommitAttrs, error) {
   var err error
   
-  branch_info, err := q.GetBranchInfo(repoName, branchName)  
+  branch_attr, err := q.GetBranchAttrs(repoName, branchName)  
   if err != nil {
     return nil, err
   }
   
-  if branch_info.Head == nil {
+  if branch_attr.Head == nil {
     base.Log("Branch has no head. Panic.", repoName, branchName)
     return nil, fmt.Errorf("Branch has no head. %s %s", repoName, branchName)
   }
 
-  commit_key:= q.getCommitKey(repoName, branch_info.Head.Id)
+  commit_key:= q.getCommitKey(repoName, branch_attr.Head.Id)
   data, err := q.db.Get(commit_key)
   
-  commit_info :=  &CommitInfo{} 
-  err = json.Unmarshal(data, &commit_info)
-  return commit_info, err
+  commit_attrs :=  &CommitAttrs{} 
+  err = json.Unmarshal(data, &commit_attrs)
+  return commit_attrs, err
 }
 
-func (q *queryServer) InsertCommitInfo(repoName string, commitId string, commitInfo *CommitInfo) error {
+func (q *queryServer) InsertCommitAttrs(repoName string, commitId string, commitInfo *CommitAttrs) error {
   commit_key := q.getCommitKey(repoName, commitId)
   return q.db.Insert(commit_key, commitInfo)
 }
 
 
-func (q *queryServer) UpdateCommitInfo(repoName string, commitId string, commitInfo *CommitInfo) error {
+func (q *queryServer) UpdateCommitAttrs(repoName string, commitId string, commitInfo *CommitAttrs) error {
   commit_key := q.getCommitKey(repoName, commitId)
   return q.db.Update(commit_key, commitInfo)
 }
 
-func (q *queryServer) DeleteCommitInfo(repoName, commitId string) (error) {
+func (q *queryServer) DeleteCommitAttrs(repoName, commitId string) (error) {
   commit_key := q.getCommitKey(repoName, commitId)
   return q.db.SoftDelete(commit_key)
 }
@@ -197,32 +197,32 @@ func (q *queryServer) getFileKey(repoName string, commitId string, filePath stri
   return q.getRepoKey(repoName) + ":commit:" + commitId + ":path:" + filePath
 }
 
-func (q *queryServer) GetFileInfo(repoName string, commitId string, filePath string) (*FileInfo, error) {
+func (q *queryServer) GetFileAttrs(repoName string, commitId string, filePath string) (*FileAttrs, error) {
   var err error
   file_key:= q.getFileKey(repoName, commitId, filePath)
   data, err := q.db.Get(file_key)
   
   if err != nil {
-    base.Log("queryServer.GetFileInfo(): Error retrieving FileInfo:", commitId, filePath)
+    base.Log("queryServer.GetFileAttrs(): Error retrieving FileAttrs:", commitId, filePath)
     if db_pkg.IsErrRecNotFound(err) {
-      return &FileInfo{}, err
+      return &FileAttrs{}, err
     }
     return nil, err
   }
 
-  file_info :=  &FileInfo{} 
-  err = json.Unmarshal(data, &file_info)
-  return file_info, err
+  file_attrs :=  &FileAttrs{} 
+  err = json.Unmarshal(data, &file_attrs)
+  return file_attrs, err
 }
 
-func (q *queryServer) UpsertFileInfo(repoName string, commitId string, filePath string, fileInfo *FileInfo) error {
+func (q *queryServer) UpsertFileAttrs(repoName string, commitId string, filePath string, fileAttr *FileAttrs) error {
   var err error
-  //file_id := fileInfo.File.Path
-  //fileInfoFromDB, err := q.GetFileInfo(repoName, commitId, file_id)
+  //file_id := fileAttr.File.Path
+  //fileInfoFromDB, err := q.GetFileAttrs(repoName, commitId, file_id)
   //TODO: check size difference 
 
   file_key:= q.getFileKey(repoName, commitId, filePath)
-  err = q.db.Upsert(file_key, fileInfo)
+  err = q.db.Upsert(file_key, fileAttr)
 
   if err != nil {
     return err
@@ -236,13 +236,13 @@ func (q *queryServer) AssignBranch(repoName string, branch *Branch) (error) {
   // lock DB record 
 
   // update repoinfo 
-  repo_info, err := q.GetRepoInfo(repoName)
+  repo_attrs, err := q.GetRepoAttrs(repoName)
   if err != nil {
     return err
   }
-  repo_info.Branch = branch
+  repo_attrs.Branch = branch
 
-  return q.UpdateRepoInfo(repoName, repo_info)
+  return q.UpdateRepoAttrs(repoName, repo_attrs)
 
 }
 

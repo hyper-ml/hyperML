@@ -95,14 +95,14 @@ func (h *handler) handleGetObject() error {
     return err
   }
 
-  file_info, err := h.server.workspaceApi.GetFileInfo(repo_name, commit_id, file_path)
+  file_attrs, err := h.server.workspaceApi.GetFileAttrs(repo_name, commit_id, file_path)
 
   if err != nil {
     fmt.Println("failed to retrieve file info", err)
     return err
   }
   
-  object_hash := file_info.Object.Path
+  object_hash := file_attrs.Object.Path
   base.Debug("handleGetObject(): object_hash")
   rs, err:= h.server.objectAPI.ReadSeeker(object_hash, offset, size)
 
@@ -132,7 +132,7 @@ func (h *handler) handleGetRepo() error {
   repoName := h.getQuery("repoName")
   
   //TODO: handle error
-  repo_info, branch_info, commit_info, fmap, _ := h.server.workspaceApi.DownloadRepo(repoName)
+  repo_attrs, branch_attr, commit_attrs, fmap, _ := h.server.workspaceApi.DownloadRepo(repoName)
 
   // Repo Response:
   //    Repo
@@ -140,11 +140,11 @@ func (h *handler) handleGetRepo() error {
   //    CommitId <- Head
   //    FileMap
 
-  if commit_info != nil {
+  if commit_attrs != nil {
     response = map[string]interface{}{
-      "repo": repo_info.Repo, 
-      "branch": branch_info.Branch,
-      "commit_id": commit_info.Commit.Id,
+      "repo": repo_attrs.Repo, 
+      "branch": branch_attr.Branch,
+      "commit_id": commit_attrs.Commit.Id,
       "file_map": fmap, 
     }
   }
@@ -154,7 +154,7 @@ func (h *handler) handleGetRepo() error {
   return nil
 } 
 
-func (h *handler) handleGetRepoInfo() error {
+func (h *handler) handleGetRepoAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
 
@@ -163,27 +163,27 @@ func (h *handler) handleGetRepoInfo() error {
   }
   
   //TODO: handle error
-  repo_info, err := h.server.workspaceApi.GetRepoInfo(repoName)
+  repo_attrs, err := h.server.workspaceApi.GetRepoAttrs(repoName)
 
 
-  fmt.Println("repo_info:", repo_info)
+  fmt.Println("repo_attrs:", repo_attrs)
   
   if err == nil {
     response = map[string]interface{}{
-      "repo_info": repo_info, 
+      "repo_attrs": repo_attrs, 
     }
   } else {
     return err
   }
 
-  fmt.Println("response on handleGetRepoInfo: ", response)
+  fmt.Println("response on handleGetRepoAttrs: ", response)
   h.writeJSON(response)
 
   return nil
 } 
 
 
-func (h *handler) handleGetBranchInfo() error {
+func (h *handler) handleGetBranchAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
 
@@ -198,23 +198,23 @@ func (h *handler) handleGetBranchInfo() error {
   }
 
   //TODO: handle error
-  branch_info, err := h.server.workspaceApi.GetBranchInfo(repoName, branchName)
+  branch_attr, err := h.server.workspaceApi.GetBranchAttrs(repoName, branchName)
 
-  fmt.Println("branch_info:", branch_info)
+  fmt.Println("branch_attr:", branch_attr)
   
   if err == nil {
-    response = structs.Map(branch_info) 
+    response = structs.Map(branch_attr) 
   } else {
     return err
   }
 
-  fmt.Println("response on handleGetRepoInfo: ", response)
+  fmt.Println("response on handleGetRepoAttrs: ", response)
   h.writeJSON(response)
 
   return nil
 } 
 
-func (h *handler) handleGetCommitInfo() error {
+func (h *handler) handleGetCommitAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
   commitId := h.getQuery("commitId")
@@ -228,15 +228,43 @@ func (h *handler) handleGetCommitInfo() error {
   }
     
   //TODO: handle error
-  commit_info, err := h.server.workspaceApi.GetCommitInfo(repoName, commitId)
+  commit_attrs, err := h.server.workspaceApi.GetCommitAttrs(repoName, commitId)
   
   if err == nil {
-    response = structs.Map(commit_info) 
+    response = structs.Map(commit_attrs) 
   } else {
     return err
   }
 
-  fmt.Println("response on handleGetRepoInfo: ", response)
+  fmt.Println("response on handleGetRepoAttrs: ", response)
+  h.writeJSON(response)
+
+  return nil
+} 
+
+
+func (h *handler) handleGetCommitMap() error {
+
+  var response map[string]interface{}
+  repoName := h.getQuery("repoName")
+  commitId := h.getQuery("commitId")
+
+  if repoName == "" { 
+    return base.HTTPErrorf(http.StatusInternalServerError, "Invalid repo param - repoName")
+  }
+
+  if commitId == "" { 
+    return base.HTTPErrorf(http.StatusInternalServerError, "Invalid commitId param - commitId")
+  }
+    
+  //TODO: handle error
+  commit_map, err := h.server.workspaceApi.GetCommitMap(repoName, commitId)
+  
+  if err == nil {
+    response = structs.Map(commit_map) 
+  } else {
+    return err
+  }
   h.writeJSON(response)
 
   return nil
@@ -244,7 +272,9 @@ func (h *handler) handleGetCommitInfo() error {
 
 
 
-func (h *handler) handleGetFileInfo() error {
+
+
+func (h *handler) handleGetFileAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
   commitId := h.getQuery("commitId")
@@ -258,11 +288,11 @@ func (h *handler) handleGetFileInfo() error {
     return base.HTTPErrorf(http.StatusInternalServerError, "Invalid repo param - commitId")
   }
     
-  file_info, err := h.server.workspaceApi.GetFileInfo(repoName, commitId, fpath)
+  file_attrs, err := h.server.workspaceApi.GetFileAttrs(repoName, commitId, fpath)
   
   if err == nil {
     //TODO: handle nil file info
-    response = structs.Map(file_info) 
+    response = structs.Map(file_attrs) 
   } else {
     return err
   }

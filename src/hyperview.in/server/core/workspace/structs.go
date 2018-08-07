@@ -20,7 +20,7 @@ func NewRepo(name string) *Repo{
 
 
 // TODO: add created, updated etc
-type RepoInfo struct {
+type RepoAttrs struct {
   Repo *Repo 
   Size_bytes uint64
   Description string
@@ -33,7 +33,7 @@ type Branch struct {
 }
 
 // maps branch to commits
-type BranchInfo struct {
+type BranchAttrs struct {
   Branch *Branch
   Head *Commit  
 }
@@ -44,7 +44,7 @@ type Commit struct {
   //TODO: add author, time etc
 }
 
-type CommitInfo struct {
+type CommitAttrs struct {
   Commit *Commit 
   Parent_commit *Commit
   Child_commits []*Commit
@@ -54,7 +54,7 @@ type CommitInfo struct {
   Finished time.Time
 }
 
-func (ci *CommitInfo) Id() string{
+func (ci *CommitAttrs) Id() string{
   return ci.Commit.Id
 }
 
@@ -109,12 +109,12 @@ type File struct {
   Path string
 }
 
-type FileInfoMap struct {
+type FileAttrsMap struct {
   Commit *Commit
-  Entries map[string]*FileInfo
+  Entries map[string]*FileAttrs
 }
 
-type FileInfo struct {
+type FileAttrs struct {
   File *File 
   FileType string
   SizeBytes int64 
@@ -129,24 +129,24 @@ type Object struct {
 
  
 
-func NewFileInfo(commit *Commit, filePath string, objectPath string, sizeBytes int64, checkSum string) (*FileInfo) {
+func NewFileAttrs(commit *Commit, filePath string, objectPath string, sizeBytes int64, checkSum string) (*FileAttrs) {
 
   object := &Object{Path: objectPath, Hash: objectPath}
   file := &File{Commit: commit, Path: filePath}
-  file_info := &FileInfo{
+  file_attrs := &FileAttrs{
     File: file, 
     FileType: "FILE",
     SizeBytes: sizeBytes, 
     Object: object, 
     CheckSum: checkSum} 
 
-  return file_info
+  return file_attrs
 }
 
-func NewDirInfo(commit *Commit, dirPath string, sizeBytes int64) (*FileInfo) {
+func NewDirInfo(commit *Commit, dirPath string, sizeBytes int64) (*FileAttrs) {
   
   file := &File{Commit: commit, Path: dirPath}
-  dir_info := &FileInfo{
+  dir_info := &FileAttrs{
     File: file, 
     FileType: "DIR",
     SizeBytes: sizeBytes} 

@@ -6,6 +6,9 @@ import (
   "net/http"
   "time"
   "strconv"
+  "hyperview.in/server/core/tasks"
+  "hyperview.in/server/core/flow"
+
   "hyperview.in/server/core/storage"
   "hyperview.in/server/core/db"
   "hyperview.in/server/core/workspace"
@@ -22,7 +25,8 @@ type ServerContext struct {
   databaseContext *db.DatabaseContext
   workspaceApi workspace.ApiServer
   vfs *workspace.VfsServer
-  tasker *tasks.Tasker
+  tasker tasks.Tasker
+  flowServer *flow.FlowServer
 }
 
 // TODO: add error logging and response
@@ -42,12 +46,16 @@ func NewServerContext(config *ServerConfig) *ServerContext{
     }
   }
 
+
   //TODO: add config variable for storage option
   oapi, _ := storage.NewObjectAPI(dir, cacheBytes, "GCS") 
   dbc, err := db.NewDatabaseContext(config.DatabaseConfig.Name, config.DatabaseConfig.User, config.DatabaseConfig.Pass) 
   ws_api, err := workspace.NewApiServer(dbc, oapi)
   vfs := workspace.NewVfsServer(dbc, oapi)
   tasker := tasks.NewShellTasker(dbc)
+
+  kube_namespace:= "hflow"
+  flow_server := flow.NewFlowServer(dbc, kube_namespace)
 
   sc := &ServerContext{
     config: config,
@@ -57,6 +65,7 @@ func NewServerContext(config *ServerConfig) *ServerContext{
     databaseContext: dbc,
     vfs: vfs,
     tasker: tasker,
+    flowServer: flow_server,
   }
   return sc
 }

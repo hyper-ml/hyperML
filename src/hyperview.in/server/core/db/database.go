@@ -6,6 +6,8 @@ import (
 	"database/sql"
   _ "github.com/lib/pq"
 
+  "hyperview.in/server/base"
+
 )
 
 
@@ -13,8 +15,10 @@ type DatabaseContext struct {
   Name string
   conn *sql.DB
   LastCall time.Time
+  Listener ChangeListener
 }
 
+// TODO: add listener activate flag
 func NewDatabaseContext(db_name string, db_user string, db_password string) (*DatabaseContext, error) {
   var err error
   var conn_str string
@@ -32,11 +36,19 @@ func NewDatabaseContext(db_name string, db_user string, db_password string) (*Da
     return nil, err
   }
 
-  return &DatabaseContext{Name: db_name, conn: db, LastCall: time.Now()}, nil
+  //TODO: add config for listener
+  change_lnr := NewChangeListener(25)
+
+  return &DatabaseContext{Name: db_name, conn: db, LastCall: time.Now(), Listener: change_lnr}, nil
 }
 
 
 func (d *DatabaseContext) Close() {
+  
+  if d.Listener!= nil {
+    base.Log("Closing Listener")
+    d.Listener.Close()
+  } 
   defer d.conn.Close()
 }
 

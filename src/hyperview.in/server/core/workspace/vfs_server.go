@@ -29,7 +29,7 @@ func NewVfsServer(d *dbpkg.DatabaseContext, oapi storage.ObjectAPIServer) *VfsSe
 }
 
 // List files in a given commit from a directory
-func (vfs *VfsServer) ListDir(repoName string, commitId string, path string) (map[string]*FileInfo, error) {
+func (vfs *VfsServer) ListDir(repoName string, commitId string, path string) (map[string]*FileAttrs, error) {
   var err error
   
   ctxn, err := NewCommitTxn(repoName, commitId, vfs.db)
@@ -58,8 +58,8 @@ func (vfs *VfsServer) ListDir(repoName string, commitId string, path string) (ma
 }
 
 
-func (vfs *VfsServer) Lookup(repoName string, commitId string, p string) (*FileInfo, error) {
-  var f_info *FileInfo
+func (vfs *VfsServer) Lookup(repoName string, commitId string, p string) (*FileAttrs, error) {
+  var f_info *FileAttrs
   var err error
 
   ctxn, err := NewCommitTxn(repoName, commitId, vfs.db)

@@ -183,12 +183,14 @@ func (r *Request) processJsonResponse(resp *http.Response, req *http.Request) Re
   
   if resp.Body != nil {
     body, err = ioutil.ReadAll(resp.Body)
-    base.Log("[Request.processJsonResponse] Result: ", string(body), err)
+    base.Debug("[Request.processJsonResponse] Result: ", string(body), err)
 
-    if err!= nil {
+    if err != nil {
+      base.Log("[Request.processJsonResponse] HTTP request Failed: ", err)
       return Result{err: err}
-    }   
+    }
 
+     //TODO: change content type based on response
     return NewResult(body, "application/json" , err, resp.StatusCode)
   }
   return Result{}

@@ -3,13 +3,14 @@ package tasks
 import (
   "time"
   "fmt"
-
+  "hyperview.in/server/base"
+  "encoding/json"
   db_pkg "hyperview.in/server/core/db"
 )
 
-type Tasker Interface {
-  CreateTask(config *TaskConfig) error
-  GetTask(Id string) (*TaskInfo, error)
+type Tasker interface {
+  CreateTask(config *TaskConfig) (*TaskAttrs, error) 
+  GetTaskAttrs(Id string) (*TaskAttrs, error)
 }
 
 type shellTasker struct {
@@ -19,33 +20,41 @@ type shellTasker struct {
   //keep track of launched tasks 
 }
 
-func NewShellTasker(db *db_pkg.DatabaseContext) *Tasker {
+func NewShellTasker(db *db_pkg.DatabaseContext) Tasker {
   return &shellTasker {
     db: db,
-    started: time.Now()
+    started: time.Now(),
   }
 }
 
 
-func (t *shellTasker) taskKey(taskId string) string {
+func taskKey(taskId string) string {
   return "task:" + taskId
 }
 
-func (t *shellTasker) CreateTask(config *TaskConfig) error{
-  task_info := NewTaskInfo(config)
-  return q.db.Insert(task_info.Task.Id, task_info)
+func (t *shellTasker) CreateTask(config *TaskConfig) (*TaskAttrs, error) {
+  task_attrs := NewTaskAttrs(config)
+  task_key := taskKey(task_attrs.Task.Id)
+
+  err := t.db.Insert(task_key, task_attrs)
+  if err != nil {
+    base.Log("[shellTasker.CreateTask] Failed to create task")
+    return nil, err
+  }
+
+  return task_attrs, nil
 }
 
-func (t *shellTasker) GetTask(Id string) (*TaskInfo, error) {
+func (t *shellTasker) GetTaskAttrs(Id string) (*TaskAttrs, error) {
   var err error
-  if Id == nil {
-    return nil, fmt.Errorf("Task Id is required parameter to GetTaskInfo")
+  if Id == "" {
+    return nil, fmt.Errorf("Task Id is required parameter to GetTaskAttrs")
   }
-  data, err := q.db.Get(taskKey(Id))
+  data, err := t.db.Get(taskKey(Id))
   
-  taskInfo :=  &TaskInfo{} 
-  err = json.Unmarshal(data, &taskInfo)
+  task_attrs :=  &TaskAttrs{} 
+  err = json.Unmarshal(data, &task_attrs)
   
-  return taskInfo, err
+  return task_attrs, err
 }
 

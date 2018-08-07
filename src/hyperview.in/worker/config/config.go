@@ -10,16 +10,19 @@ import (
 
 type Config struct {
   UserID string
-  ServerAddr string
+  DefaultServerAddr string
   SessionId string
   RepoUriPath string
-  RepoInfoUriPath string
-  BranchInfoUriPath string
+  RepoAttrsUriPath string
+  BranchAttrsUriPath string
   CommitUriPath string
-  CommitInfoUriPath string
+  CommitAttrsUriPath string
+  CommitMapUriPath string
   FileUriPath string
-  FileInfoUriPath string
+  FileAttrsUriPath string
   ObjectUriPath string
+  FlowAttrsUriPath string
+  WorkerUriPath string
   // virtual file system to uri
   VfsUriPath string
   Concurrency int
@@ -46,19 +49,31 @@ func ReadFromFile() (*Config, error) {
 
 func Default() (*Config) {
   return &Config{
-    ServerAddr: "http://localhost:8888",
+    DefaultServerAddr: "http://localhost:8888",
     RepoUriPath: "repo",
-    RepoInfoUriPath: "repo_info",
-    BranchInfoUriPath: "branch_info",
+    RepoAttrsUriPath: "repo_attrs",
+    BranchAttrsUriPath: "branch_attr",
     CommitUriPath: "commit",
-    CommitInfoUriPath: "commit_info",
+    CommitAttrsUriPath: "commit_attrs",
+    CommitMapUriPath: "commit_map",
     FileUriPath: "file",
-    FileInfoUriPath: "file_info",
+    FileAttrsUriPath: "file_attrs",
     ObjectUriPath: "object",
     VfsUriPath: "vfs",
+    WorkerUriPath: "worker",
+    FlowAttrsUriPath: "flow",
     Concurrency: 10,
   }
 }
 
+func GetConfig() *Config {
 
+  c, err := ReadFromFile()
+
+  if err != nil {
+    fmt.Println("Failed to read config file")
+    c = Default()
+  } 
+  return c
+}
 

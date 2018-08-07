@@ -40,7 +40,7 @@ func (h *handler) handlePutObject() error {
 
   // TODO: create file info and object cache 
 
-  file_info, err := h.server.workspaceApi.GetFileInfo(repo_name, commit_id, file_path)
+  file_attrs, err := h.server.workspaceApi.GetFileAttrs(repo_name, commit_id, file_path)
   
   if err != nil {
     if !db_pkg.IsErrRecNotFound(err) {
@@ -51,7 +51,7 @@ func (h *handler) handlePutObject() error {
     base.Debug("File not found in commit map. Creating a new entry", repo_name, commit_id, file_path)  
   }
    
-  object_hash := file_info.Object.Path
+  object_hash := file_attrs.Object.Path
 
   if h.rq.Body != nil {
     obj_path, chksum, n, err := h.server.objectAPI.UpdateObject("objects", object_hash, h.rq.Body, false) 

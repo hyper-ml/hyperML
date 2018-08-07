@@ -54,7 +54,7 @@ func NewApiClient(repoDir string) (*ApiClient, error) {
     return nil, err
   }
 
-  repo_info, err := rest_client.NewRESTClient(server_addr, c.RepoUriPath, http.DefaultClient)
+  repo_attrs, err := rest_client.NewRESTClient(server_addr, c.RepoUriPath, http.DefaultClient)
   if err != nil {
     return nil, err
   }
@@ -65,7 +65,7 @@ func NewApiClient(repoDir string) (*ApiClient, error) {
   code_sync := code_sync.NewClient(c.ServerAddr, repo_fs)
 
   return &ApiClient {
-    repoInfo: repo_info,
+    repoInfo: repo_attrs,
     codeSync: code_sync,
     repoFS: repo_fs,
   }, nil

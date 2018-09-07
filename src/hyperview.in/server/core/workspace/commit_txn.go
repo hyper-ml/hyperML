@@ -23,34 +23,60 @@ type commitTxn struct {
   q *queryServer
 }
 
+func NewCommitTxn(repoName string, branchName string, commitId string, db *db.DatabaseContext) (*commitTxn, error) {
 
-func NewCommitTxn(repoName string, commitId string, db *db.DatabaseContext) (*commitTxn, error) {
-  var commit_attrs *CommitAttrs
-  var err error 
+  var branch_name string = branchName
+
   q:= NewQueryServer(db)
 
+  if branch_name == "" {
+    return nil, fmt.Errorf("Invalid branch: %s", branch_name)
+  }
+
+  txn := &commitTxn {
+    repoName: repoName,
+    branchName: branch_name,
+    db: db,
+    q: q,
+  }
+
+  // validate and assign
   if commitId != "" {
-    commit_attrs, err = q.GetCommitAttrsById(repoName, commitId)
+
+    c_attrs, err := q.GetCommitAttrsById(repoName, commitId)
     if (err != nil ){
       return nil, fmt.Errorf("Invalid Commit Id or Repo Name: %s", err)
     }
-  }
 
-  return &commitTxn {
-    commitInfo: commit_attrs,
-    repoName: repoName,
-    branchName: "master",
-    db: db,
-    q: q,
-  }, nil
+    // if commit id not branch head then raise error 
+    is_head, err := q.IsBranchHead(repoName, branch_name, commitId) 
+
+    if err != nil {
+      base.Debug("[NewCommitTxn] Failed to check branch head: ", err)
+      return nil, err
+    }
+
+    if !is_head {
+      return nil, errStaleCommit()
+    }
+    
+    if c_attrs.IsOpen(){
+      txn.commitInfo = c_attrs
+    }
+    
+  }
+   
+  return txn, nil
 }
+
+
 
 func (ct *commitTxn) setCommitAttrs(c *CommitAttrs) {
  ct.commitInfo = c 
 }
 
 func (ct *commitTxn) IsOpenCommit() bool {
-  if !ct.commitInfo.Finished.IsZero() {
+  if !ct.commitInfo.IsOpen() {
     base.Log("This repo has no open commit. Please initialize commit before adding files.")
     return false
   }
@@ -67,43 +93,54 @@ func (ct *commitTxn) setCommitAttrsByBranch() error {
 }
 
 func (ct *commitTxn) Start() (string, error) {
+  commit_attrs, err := ct.Init()
+  return commit_attrs.Id(), err
+}
+
+func (ct *commitTxn) Init() (*CommitAttrs, error) {
 
   var err error 
   var branch_attr *BranchAttrs
   var repo_attrs *RepoAttrs
   var new_cinfo *CommitAttrs
   var head_cinfo *CommitAttrs
+  var repo_name string = ct.repoName
+  var branch_name string = ct.branchName
+
+  // if commit info was already set in NewCommitTxn()
+  if ct.commitInfo != nil {
+    return ct.commitInfo, nil
+  }
 
   repo_attrs, err = ct.q.GetRepoAttrs(ct.repoName)
-
   if (err !=nil) {
     base.Log("InitiateCommit: Could not fetch repo with given name %s", ct.repoName)
-    return "", err
+    return nil, err
   }
 
   // if this is first ever commit. create master branch
-  if repo_attrs.Branch == nil {
-    
-    // add master branch
-    branch_attr, err = ct.addMasterBranch()
+  if len(repo_attrs.Branches) == 0 { 
+    return nil, errBranchMissing(repo_name + ":" + branch_name)
+  } 
+  
+  branch_attr, err = ct.q.GetBranchAttrs(repo_name, branch_name)
+  if err != nil {
+    base.Log("[commitTxn.Init] Failed to retrieve branch: ", err)
+    return nil, err
+  }
 
-  } else {
-    
-    branch_attr, err = ct.q.GetBranchAttrs(ct.repoName, repo_attrs.Branch.Name)
-
-    // check if there is a pending commit 
-    if branch_attr.Head != nil  {
-
-      head_cinfo, err = ct.q.GetCommitAttrsById(ct.repoName, branch_attr.Head.Id)
+  // check if there is an open commit then use it 
+  if branch_attr.Head != nil  {
+    head_cinfo, err = ct.q.GetCommitAttrsById(repo_name, branch_attr.Head.Id)
       
-      if head_cinfo.Finished.IsZero() {
+    if head_cinfo.IsOpen() {
         base.Log("There is a pending commit against this repo", head_cinfo)
         ct.setCommitAttrs(head_cinfo)
-        return head_cinfo.Id(), nil
-      }
+        return head_cinfo, nil
     }
   }
   
+  // create an open commit now that you have reached here
   if branch_attr != nil {
 
     // add commit with current head as parent 
@@ -115,20 +152,19 @@ func (ct *commitTxn) Start() (string, error) {
     if err != nil {
       //TODO : delete new commit 
       defer ct.Delete()
-      return "", err
+      return nil, err
     }
 
-  }
+    if new_cinfo != nil {
+      ct.setCommitAttrs(new_cinfo)
+      return new_cinfo, err
+    }
+  } 
 
-  if new_cinfo != nil {
-    ct.setCommitAttrs(new_cinfo)
-    return new_cinfo.Id(), err
-  }
-
-  return "", err
+  return nil, err
 }
 
-func (ct *commitTxn) addMasterBranch() (*BranchAttrs, error) {
+func (ct *commitTxn) addBranch(name string) (*BranchAttrs, error) {
   var err error 
   //var repo_attrs *RepoAttrs
 
@@ -137,7 +173,7 @@ func (ct *commitTxn) addMasterBranch() (*BranchAttrs, error) {
   }
   
   branch := &Branch {
-    Name: "master",
+    Name: name,
     Repo: repo,
   }
 
@@ -234,7 +270,7 @@ func (ct *commitTxn) End() error {
     return fmt.Errorf("finishCommit: Could not fetch any open commit for repo %s", ct.repoName)
   }
 
-  if ct.commitInfo.Finished.IsZero() {
+  if ct.commitInfo.IsOpen() {
     ct.commitInfo.Finished = time.Now()
     err = ct.q.UpdateCommitAttrs(ct.repoName, ct.commitInfo.Id(), ct.commitInfo)
     return err  

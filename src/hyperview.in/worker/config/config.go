@@ -22,6 +22,8 @@ type Config struct {
   FileAttrsUriPath string
   ObjectUriPath string
   FlowAttrsUriPath string
+  TaskAttrsUriPath string
+  TaskStatusUriPath string
   WorkerUriPath string
   // virtual file system to uri
   VfsUriPath string
@@ -62,6 +64,8 @@ func Default() (*Config) {
     VfsUriPath: "vfs",
     WorkerUriPath: "worker",
     FlowAttrsUriPath: "flow",
+    TaskAttrsUriPath: "tasks",
+    TaskStatusUriPath: "task_status",
     Concurrency: 10,
   }
 }

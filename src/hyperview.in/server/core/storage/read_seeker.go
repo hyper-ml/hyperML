@@ -2,7 +2,6 @@ package storage
 
 import (
   "io" 
-  "fmt"
 )
 
 type reader = io.Reader
@@ -48,6 +47,5 @@ func (ors *getObjReadSeeker) Seek(offset int64, whence int) (int64, error) {
       ors.offset = ors.size - offset
       ors.reader = reader
   }  
-  fmt.Println("in seek", ors.offset, offset, whence)
   return ors.offset, nil
 } 

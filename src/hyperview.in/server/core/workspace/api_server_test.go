@@ -111,7 +111,7 @@ func Test_GetRepo(t *testing.T) {
 func Test_Commit(t *testing.T) {
   api, _ := getAPIServer()
   
-  _, err := api.InitCommit(TEST_REPO_NAME)
+  _, err := api.InitCommit(TEST_REPO_NAME,"master")
   if err != nil {
     fmt.Println("Init commit error :", err)
     t.Fatalf("Failed to initialize commit")
@@ -144,7 +144,7 @@ func Test_AddFile(t *testing.T) {
 }
 func Test_InitCommit(t *testing.T) {
   api, _ := getAPIServer()
-  _, err := api.InitCommit(TEST_REPO_NAME)
+  _, err := api.InitCommit(TEST_REPO_NAME, "master")
   if err != nil {
     fmt.Println("InitCommit commit error :", err)
     t.Fatalf("InitCommit to complete commit")

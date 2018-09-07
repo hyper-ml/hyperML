@@ -15,14 +15,14 @@ import (
 var lastUid uint64 = 0
 
 
-type handler struct {
+type Handler struct {
 	server *ServerContext
   rq *http.Request
   response http.ResponseWriter
   requestBody io.ReadCloser
   status int
   statusMessage string
-  privs handlerPrivs
+  privs HandlerPrivs
   uid uint64
   startTime      time.Time
   query_params    url.Values 
@@ -31,7 +31,7 @@ type handler struct {
 type httpBody map[string]interface{}
 
 
-type handlerPrivs int
+type HandlerPrivs int
 const handelerVersion = "0.1"
 
 const ( userPrivs = iota
@@ -39,9 +39,9 @@ const ( userPrivs = iota
   adminPrivs
 )
 
-type handlerMethod func(*handler) error
+type HandlerMethod func(*Handler) error
 
-func makeHandler(server *ServerContext, privs handlerPrivs, method handlerMethod) http.Handler {
+func makeHandler(server *ServerContext, privs HandlerPrivs, method HandlerMethod) http.Handler {
   return http.HandlerFunc(func(response http.ResponseWriter, req *http.Request){
     h := newHandler(server, privs, response, req)
     err := h.invoke(method)
@@ -52,8 +52,8 @@ func makeHandler(server *ServerContext, privs handlerPrivs, method handlerMethod
 
 // TODO: 
 // 1. Add user details
-func newHandler(server *ServerContext, privs handlerPrivs, response http.ResponseWriter, request *http.Request ) *handler{
-  return &handler{
+func newHandler(server *ServerContext, privs HandlerPrivs, response http.ResponseWriter, request *http.Request ) *Handler{
+  return &Handler{
     server: server,
     privs: privs,
     rq: request,
@@ -65,7 +65,7 @@ func newHandler(server *ServerContext, privs handlerPrivs, response http.Respons
 }
 
 
-func (h *handler) invoke(method handlerMethod) error {
+func (h *Handler) invoke(method HandlerMethod) error {
   //TODO : add stats logging
 
   h.setHeader("server", handelerVersion)
@@ -79,7 +79,7 @@ func (h *handler) invoke(method handlerMethod) error {
 // Utility functions 
 //
 
-func (h *handler) writeError(err error) {
+func (h *Handler) writeError(err error) {
   
   if err != nil {
     status, message := base.ErrorToHTTPStatus(err)
@@ -87,7 +87,7 @@ func (h *handler) writeError(err error) {
   }
 }
 
-func (h *handler) writeStatus(status int, message string) {
+func (h *Handler) writeStatus(status int, message string) {
   if status < 300 {
     h.response.WriteHeader(status)
     h.setStatus(status, message)
@@ -113,29 +113,46 @@ func (h *handler) writeStatus(status int, message string) {
   h.response.Write(jsonOut)
 }
 
-func (h *handler) logRequest() {
+func (h *Handler) logRequest() {
   //queryParams := h.getQueryParams()
 
   //base.Log("HTTP Request Log:", h.uid, h.rq.Method, queryParams)
 }
 
-func (h *handler) logRequestBody() {
+func (h *Handler) logRequestBody() {
   fmt.Println("Log request body. TODO")
 
 }
 
-func (h *handler) getQueryParams() url.Values{
+func (h *Handler) getQueryParams() url.Values{
   if h.query_params == nil {
     h.query_params = h.rq.URL.Query()
   }
   return h.query_params
 }
 
-func (h *handler) getQuery(query string) string {
+func (h *Handler) getQuery(query string) string {
   return h.getQueryParams().Get(query)
 }
 
-func (h *handler) requestAccepts(mimetype string) bool {
+
+
+func (h *Handler) getUrlParams() map[string]string {
+  return muxVars(h.rq)
+}
+
+func (h *Handler) getMandatoryUrlParam(pname string) (string, error) {
+  vars := h.getUrlParams()
+  param_value, ok := vars[pname]
+  if !ok {
+    return "", base.HTTPErrorf(http.StatusInternalServerError, "Invalid request parameter: " + pname )
+  }
+
+  return param_value, nil
+}
+
+
+func (h *Handler) requestAccepts(mimetype string) bool {
   accept := h.rq.Header.Get("Accept")
   return accept == "" || strings.Contains(accept, mimetype) || strings.Contains(accept, "*/*")
 }
@@ -143,21 +160,21 @@ func (h *handler) requestAccepts(mimetype string) bool {
 // Response methods 
 
 
-func (h *handler) setHeader(name string, value string) {
+func (h *Handler) setHeader(name string, value string) {
   h.response.Header().Set(name, value)
 }
 
-func (h *handler) setStatus(status int, message string) {
+func (h *Handler) setStatus(status int, message string) {
   h.status = status
   h.statusMessage = message
 }
 
-func (h *handler) writeJSON(value interface{}) {
+func (h *Handler) writeJSON(value interface{}) {
   h.writeJSONStatus(http.StatusOK, value)
 }
 
 
-func (h *handler) writeJSONStatus(status int, value interface{}) {
+func (h *Handler) writeJSONStatus(status int, value interface{}) {
   if !h.requestAccepts("application/json") {
     base.Log("client wont accept JSON. only ", h.rq.Header.Get("Accept"))
     h.writeStatus(http.StatusNotAcceptable, "only application/json available")

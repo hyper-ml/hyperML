@@ -9,6 +9,7 @@ import (
 
 const (
   REPO_KEY_PREFIX = "repo:"
+  DATA_REPO_KEY_PREFIX = "data:repo:"
   COMMIT_KEY_PREFIX = "commit:"
   BRANCH_KEY_PREFIX = "branch:"
   FILE_KEY_PREFIX = "file:"
@@ -38,6 +39,12 @@ func (q *queryServer) getRepoKey(repoName string) string {
 func (q *queryServer) CheckRepoExists(repoName string) bool {
   repo_key:= q.getRepoKey(repoName)
   return q.db.KeyExists(repo_key)
+}
+
+func (q *queryServer) InsertRepoAttrs(repoName string, attrs *RepoAttrs) error {
+  repo_key := q.getRepoKey(repoName)
+
+  return q.db.Insert(repo_key, attrs)
 }
 
 func (q *queryServer) DeleteRepoAttrs(repoName string) error {
@@ -95,12 +102,27 @@ func (q *queryServer) UpdateBranchAttrs(repoName string, branchName string, bran
 }
 
 
+func (q *queryServer) DeleteBranch(repoName, branchName string) error {
+  branch_key:=  q.getBranchKey(repoName, branchName)
+  return q.db.Delete(branch_key)  
+}
+
 /******************************/
 /*****  Commit Operations ******/
 //
 
 func (q *queryServer) getCommitKey(repoName string, commitId string) string {
   return REPO_KEY_PREFIX + repoName + ":" + COMMIT_KEY_PREFIX + commitId
+}
+
+func (q *queryServer) GetBranchCommitById(repoName string, branchName string, commitId string) (*CommitAttrs, error) {
+  var err error
+  commit_key:= q.getCommitKey(repoName, commitId)
+  data, err := q.db.Get(commit_key)
+  
+  commit_attrs :=  &CommitAttrs{} 
+  err = json.Unmarshal(data, &commit_attrs)
+  return commit_attrs, err
 }
 
 func (q *queryServer) GetCommitAttrsById(repoName string, commitId string) (*CommitAttrs, error) {
@@ -150,6 +172,25 @@ func (q *queryServer) DeleteCommitAttrs(repoName, commitId string) (error) {
   return q.db.SoftDelete(commit_key)
 }
 
+func (q *queryServer) IsBranchHead(repoName string, branchName string, commitId string) (bool, error) {
+  branch_attrs, err := q.GetBranchAttrs(repoName, branchName)
+  if err != nil {
+    base.Log("[commitTxn.isBranchHead] Something wrong. branch_attrs missing for repo: ", repoName, branchName)
+    return false, err
+  }
+  if branch_attrs == nil {
+    return false, errBranchMissing(repoName + ":" + branchName)
+  }
+
+  if branch_attrs.Head == nil {
+    return false, nil
+  } else if branch_attrs.Head.Id == commitId {
+    return true, nil
+  }
+
+  return false, nil
+
+}
 /****************************************/
 /*****  Commit File Map Operations ******/ 
 
@@ -240,7 +281,7 @@ func (q *queryServer) AssignBranch(repoName string, branch *Branch) (error) {
   if err != nil {
     return err
   }
-  repo_attrs.Branch = branch
+  repo_attrs.AddBranch(branch) 
 
   return q.UpdateRepoAttrs(repoName, repo_attrs)
 

@@ -8,33 +8,52 @@ import (
 )
 
 
-func createHandler(sc *ServerContext, privs handlerPrivs) (*mux.Router) {
+func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   router := mux.NewRouter()
   
   router.StrictSlash(true)
-  router.Handle("/", makeHandler(sc, privs, (*handler).handleRoot)).Methods("GET", "HEAD")
-  router.Handle("/object", makeHandler(sc, privs, (*handler).handleCreateObject)).Methods("POST")
-  router.Handle("/object", makeHandler(sc, privs, (*handler).handleGetObject)).Methods("GET")
-  router.Handle("/object", makeHandler(sc, privs, (*handler).handlePutObject)).Methods("PUT")
+  router.Handle("/", makeHandler(sc, privs, (*Handler).handleRoot)).Methods("GET", "HEAD")
+  router.Handle("/object", makeHandler(sc, privs, (*Handler).handleCreateObject)).Methods("POST")
+  router.Handle("/object", makeHandler(sc, privs, (*Handler).handleGetObject)).Methods("GET")
+  router.Handle("/object", makeHandler(sc, privs, (*Handler).handlePutObject)).Methods("PUT")
   
   // api getters for meta 
-  router.Handle("/repo", makeHandler(sc, privs, (*handler).handleGetRepo)).Methods("GET")
-  router.Handle("/repo_attrs", makeHandler(sc, privs, (*handler).handleGetRepoAttrs)).Methods("GET")
-  router.Handle("/branch_attr", makeHandler(sc, privs, (*handler).handleGetBranchAttrs)).Methods("GET")
-  router.Handle("/commit_attrs", makeHandler(sc, privs, (*handler).handleGetCommitAttrs)).Methods("GET")
-  router.Handle("/file_attrs", makeHandler(sc, privs, (*handler).handleGetFileAttrs)).Methods("GET")
-  router.Handle("/commit_map", makeHandler(sc, privs, (*handler).handleGetCommitMap)).Methods("GET")
-  
-  // api for tasks and workers
-  router.Handle("/tasks", makeHandler(sc, privs, (*handler).GetTaskAttrs)).Methods("GET")
-  router.Handle("/worker/register", makeHandler(sc, privs, (*handler).RegisterWorker)).Methods("POST")
-  router.Handle("/worker/unregister", makeHandler(sc, privs, (*handler).UnregisterWorker)).Methods("POST")
+  router.Handle("/repo", makeHandler(sc, privs, (*Handler).handlePostRepo)).Methods("POST")
+  router.Handle("/repo", makeHandler(sc, privs, (*Handler).handleGetRepo)).Methods("GET")
 
+  // commit activities
+  router.Handle("/commit", makeHandler(sc, privs, (*Handler).handleGetOrStartCommit)).Methods("GET")
+  
+
+  // repo attr getters
+  router.Handle("/repo_attrs", makeHandler(sc, privs, (*Handler).handleGetRepoAttrs)).Methods("GET")
+  router.Handle("/branch_attr", makeHandler(sc, privs, (*Handler).handleGetBranchAttrs)).Methods("GET")
+  router.Handle("/commit_attrs", makeHandler(sc, privs, (*Handler).handleGetCommitAttrs)).Methods("GET")
+  router.Handle("/file_attrs", makeHandler(sc, privs, (*Handler).handleGetFileAttrs)).Methods("GET")
+  router.Handle("/commit_map", makeHandler(sc, privs, (*Handler).handleGetCommitMap)).Methods("GET")
+  
+  // data repo 
+  router.Handle("/dataset", makeHandler(sc, privs, (*Handler).handlePostDataSet)).Methods("POST")
+  
+  // api for task and flows
+  router.Handle("/flow/{flowId}", makeHandler(sc, privs, (*Handler).handleGetFlowAttrs)).Methods("GET")
+  router.Handle("/flow", makeHandler(sc, privs, (*Handler).handleLaunchFlow)).Methods("POST")
+  
+
+  // log getters
+  router.Handle("/flow/{flowId}/log", makeHandler(sc, privs, (*Handler).handleGetFlowLog)).Methods("GET")
+  
+
+  // workers
+  router.Handle("/worker/register", makeHandler(sc, privs, (*Handler).handleRegisterWorker)).Methods("POST")
+  router.Handle("/worker/detach", makeHandler(sc, privs, (*Handler).handleDetachTaskWorker)).Methods("POST")
+  router.Handle("/worker/{workerId}/task_status", makeHandler(sc, privs, (*Handler).handleUpdateTaskStatus)).Methods("PATCH")
+  
   //vfs methods
-  router.Handle("/vfs/list_dir", makeHandler(sc, privs, (*handler).handleListDir)).Methods("GET")
-  router.Handle("/vfs/lookup",  makeHandler(sc, privs, (*handler).handleFileLookup)).Methods("GET") 
-  router.Handle("/vfs/put_file",  makeHandler(sc, privs, (*handler).handleVfsPutFile)).Methods("PUT") 
-  router.Handle("/vfs/get_file",  makeHandler(sc, privs, (*handler).handleVfsGetFile)).Methods("GET") 
+  router.Handle("/vfs/list_dir", makeHandler(sc, privs, (*Handler).handleListDir)).Methods("GET")
+  router.Handle("/vfs/lookup",  makeHandler(sc, privs, (*Handler).handleFileLookup)).Methods("GET") 
+  router.Handle("/vfs/put_file",  makeHandler(sc, privs, (*Handler).handleVfsPutFile)).Methods("PUT") 
+  router.Handle("/vfs/get_file",  makeHandler(sc, privs, (*Handler).handleVfsGetFile)).Methods("GET") 
     
   return router
 }
@@ -45,7 +64,7 @@ func CreatePublicHandler(sc *ServerContext) http.Handler {
   return topRouter(sc, userPrivs, r)
 }
 
-func topRouter(sc *ServerContext, privs handlerPrivs, router *mux.Router) http.Handler {
+func topRouter(sc *ServerContext, privs HandlerPrivs, router *mux.Router) http.Handler {
   return http.HandlerFunc(func(response http.ResponseWriter, req *http.Request) {
     
     // TODO: add cors 
@@ -88,4 +107,8 @@ func wouldMatch(router *mux.Router, rq *http.Request, method string) bool {
   return router.Match(rq, &matchInfo)
 }
 
+
+func muxVars(rq *http.Request) map[string]string {
+  return mux.Vars(rq)
+}
 

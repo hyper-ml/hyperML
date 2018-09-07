@@ -12,7 +12,8 @@ import (
 
 
 type Interface interface {
-	Verb(verb string) *Request
+  VerbSp(verb string, subPath string) *Request
+  Verb(verb string) *Request
   Post() *Request
   Put() *Request
   Get() *Request
@@ -23,7 +24,7 @@ type Interface interface {
 
 type RESTClient struct {
   // root URL for all invocations
-  base *url.URL
+  baseUrl *url.URL
   //path to resource
   apiPath string 
   //TODO: add content config for server communication
@@ -35,26 +36,34 @@ type RESTClient struct {
 
 //TODO: add max qps, max burst for throttle, rate limiter etc
 func NewRESTClient(baseURL *url.URL, apiPath string, client *http.Client) (*RESTClient, error) {
-  base := *baseURL
-  if !strings.HasSuffix(base.Path, "/") {
-    base.Path += "/"
+  base_url := *baseURL
+  if !strings.HasSuffix(base_url.Path, "/") {
+    base_url.Path += "/"
   }
-  base.RawQuery = ""
-  base.Fragment = "" 
+  base_url.RawQuery = ""
+  base_url.Fragment = "" 
 
   return &RESTClient{
-    base: &base,
+    baseUrl: &base_url,
     apiPath: apiPath,
     Client: client,
   }, nil
 }
 
+// verb with subpath
+func (c *RESTClient) VerbSp(verb string, subPath string) *Request {
+  if c.Client == nil {
+    return NewRequest(nil, verb, c.baseUrl, c.apiPath, subPath, 0)
+  }
+  return NewRequest(c.Client, verb, c.baseUrl, c.apiPath, subPath, c.Client.Timeout)
+}
+
 
 func (c *RESTClient) Verb(verb string) *Request {
   if c.Client == nil {
-    return NewRequest(nil, verb, c.base, c.apiPath, 0)
+    return NewRequest(nil, verb, c.baseUrl, c.apiPath, "",  0)
   }
-  return NewRequest(c.Client, verb, c.base, c.apiPath, c.Client.Timeout)
+  return NewRequest(c.Client, verb, c.baseUrl, c.apiPath,"", c.Client.Timeout)
 }
 
 func (c *RESTClient) Post() *Request {
@@ -64,6 +73,12 @@ func (c *RESTClient) Post() *Request {
 func (c *RESTClient) Put() *Request {
   return c.Verb("PUT")
 }
+
+
+func (c *RESTClient) Patch() *Request {
+  return c.Verb("PATCH")
+}
+
 
 func (c *RESTClient) Get() *Request {
   return c.Verb("GET")

@@ -183,7 +183,7 @@ func (r *Request) processJsonResponse(resp *http.Response, req *http.Request) Re
   
   if resp.Body != nil {
     body, err = ioutil.ReadAll(resp.Body)
-    base.Debug("[Request.processJsonResponse] Result: ", string(body), err)
+    //base.Debug("[Request.processJsonResponse] Result: ", string(body), err)
 
     if err != nil {
       base.Log("[Request.processJsonResponse] HTTP request Failed: ", err)

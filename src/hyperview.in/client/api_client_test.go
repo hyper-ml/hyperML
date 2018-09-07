@@ -11,7 +11,7 @@ import (
 )
 
 const (
-  TEST_REPO_DIR = "/Users/apple/MyProjects/stash"
+  TEST_REPO_DIR = "/var/tmp/one_repo"
   TEST_REPO_NAME = "test_repo"
 )
 
@@ -67,3 +67,27 @@ func Test_CloneRepo(t *testing.T) {
     t.Fatalf("Failed to clone repo")    
   }
 }
+
+
+func Test_RequestLog(t *testing.T) {
+  client, err := NewApiClient(TEST_REPO_DIR)
+  if err != nil {
+    fmt.Println("failed to create ApiClient", err)
+    t.Fatalf("Failed to create ApiClient")
+  }
+
+  _, err = client.RequestLog("3336dc6d88d24e3c936d925bb3fc0cf1")
+  if err != nil {
+    fmt.Println("failed to clone Repo", err)
+    t.Fatalf("Failed to clone repo")    
+  }
+}  
+
+func Test_InitDataRepo(t *testing.T) {
+  c, err := NewApiClient(TEST_REPO_DIR)
+  err = c.InitDataRepo(TEST_REPO_DIR, "TestdataRepo001")
+  if err != nil {
+    fmt.Println("Failed to create data repo: ", err)
+    t.Fail()
+  }
+} 

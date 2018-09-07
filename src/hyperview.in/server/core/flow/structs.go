@@ -24,7 +24,7 @@ const (
   CANCELLING
   CANCELLED
 )
-
+  
 type WorkerStatus int 
 
 const (
@@ -62,39 +62,20 @@ type FlowAttrs struct {
   // support multiple tasks in future releases
   Tasks map[string]TaskAttrs `json:"Tasks"`
 
-  MountConfig MountConfig `json:"MountConfig"`
+  FlowConfig *FlowConfig `json:"FlowConfig"`
 
   // lock during worker assignment
   waLock sync.RWMutex
 }
 
-type Worker struct {
-  Id string
-}
-
-type WorkerAttrs struct {
-  Worker Worker `json:"Worker"`
-  Flow Flow `json:"Flow"`
-  Ip string `json:"ip"`
-  Task Task `json:"Task"`
-  Started time.Time `json:"started"`
-  Completed time.Time `json:"completed"`
-  Error string `json:"error"`
-  Status WorkerStatus `json:"WorkerStatus"` // REGISTERED, RUNNING, FAILED, STOPPED  
-}
-
-type FlowTaskWorker struct {
-  Worker Worker `json:"Worker"`
-  Flow Flow `json:"Flow"`
-  Task Task `json:"Task"`
-  Created time.Time `json:"created"`
-}
 
 
 func NewFlowAttrs(fc *FlowConfig) *FlowAttrs {
   new_flow_id := NewTaskKey()
+  flow_config := copyConfig(fc)
 
   return &FlowAttrs {
+    FlowConfig: flow_config,
     Flow: Flow {
       Id: new_flow_id,
     },
@@ -104,18 +85,42 @@ func NewFlowAttrs(fc *FlowConfig) *FlowAttrs {
   }
 }
 
-func (f *FlowAttrs) AddTask(taskConfig *TaskConfig) {
-  new_task_id := NewTaskKey()
+func (f *FlowAttrs) AddTask(taskConfig *TaskConfig) *TaskAttrs{
+  new_task_id := f.Flow.Id
+
+  if len(f.Tasks) > 0 {
+    new_task_id = NewTaskKey() 
+  } 
+  
   new_task := TaskAttrs {
     Task: &Task {
       Id: new_task_id,
     },
     WorkDir: taskConfig.WorkDir,
     Cmd: taskConfig.Cmd,
-    CmdArgs: taskConfig.CmdArgs,    
+    CmdArgs: taskConfig.CmdArgs,   
+    TaskConfig: taskConfig,  // TODO: re-think
   } 
+  
   f.Tasks[new_task_id] = new_task 
+  return &new_task
 } 
+
+func (f *FlowAttrs) FirstTask() *TaskAttrs {
+  if len(f.Tasks) >0 {
+    for _, v := range f.Tasks {
+      return &v
+    }
+  }
+
+  return nil
+}
+
+func copyConfig(fc *FlowConfig) *FlowConfig {
+  return &FlowConfig {
+    MountMap: fc.MountMap,
+  }
+}
 
 
 func (fi *FlowAttrs) IsCreated() bool {
@@ -155,6 +160,31 @@ func (fi *FlowAttrs) IsCompleted() bool {
     return true
   }
   return false
+}
+
+
+type Worker struct {
+  Id string
+  PodId string
+  PodPhase string
+}
+
+type WorkerAttrs struct {
+  Worker Worker `json:"Worker"`
+  Flow Flow `json:"Flow"`
+  Ip string `json:"ip"`
+  Task Task `json:"Task"`
+  Started time.Time `json:"started"`
+  Completed time.Time `json:"completed"`
+  Error string `json:"error"`
+  Status WorkerStatus `json:"WorkerStatus"` // REGISTERED, RUNNING, FAILED, STOPPED  
+}
+
+type FlowTaskWorker struct {
+  Worker Worker `json:"Worker"`
+  Flow Flow `json:"Flow"`
+  Task Task `json:"Task"`
+  Created time.Time `json:"created"`
 }
 
 

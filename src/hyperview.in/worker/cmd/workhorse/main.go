@@ -15,10 +15,14 @@ import (
 type workerEnv struct {
 
   ServerAddr string `env:"SERVER_ADDR"`
+  ApiServerIp string `env:"API_SERVER_IP"`
+  ApiServerPort string `env:"API_SERVER_PORT"`
+  ApiServerProtocol string `env:"API_SERVER_PROTOCOL" envDefault:"http://"` 
+
   WorkerIp string `env:"WORKER_IP"`
   FlowId string `env:"FLOW_ID"`
   TaskId string `env:"TASK_ID"`
-  WorkingDir string `env:"WORKSPACE_DIR" envDefault:"\workspace"`
+  WorkingDir string `env:"WORKSPACE_DIR" envDefault:"/workspace"`
 
 }
 
@@ -30,18 +34,47 @@ func main() {
     base.Log("[whWorker.main] Failed to parse : ", err)
     cmdError(err)
   }
+  var api_server_addr string
+
+  if wenv.ApiServerIp != "" && wenv.ApiServerPort != "" {
+    api_server_addr = wenv.ApiServerProtocol + wenv.ApiServerIp + ":" + wenv.ApiServerPort
+  }
+  
+  if  wenv.ServerAddr != "" {
+    api_server_addr = wenv.ServerAddr
+  }
+
+
   base.Log("[whWorker.main] Environment vars: ", wenv)
   
-  wh := worker.NewWorkHorse(wenv.ServerAddr, wenv.FlowId, wenv.TaskId, wenv.WorkerIp, wenv.WorkingDir)
-  err = wh.Register()
+  wh := worker.NewWorkHorse(api_server_addr, wenv.FlowId, wenv.TaskId, wenv.WorkerIp, wenv.WorkingDir)
+  err = wh.Init()
   
   if err != nil {
-    base.Debug("[main] Worker Registration Error: ", err)
+    
+    if strings.Contains(err.Error(), "Invalid task status") {
+      base.Log("[main] Skipping task as it is already complete.")
+      os.Exit(0)
+    }
+
+    base.Debug("[main] Worker Initialization Error: ", err)
     cmdError(err)
   }
 
   // TODO: Add backoff here
-  wh.Do()
+  err = wh.DoWork()
+  if err != nil {
+    base.Debug("[main] Worker Failed doing work. Error: ", err)
+    cmdError(err)    
+  }
+
+  err = wh.Shutdown()
+
+  if err != nil {
+    base.Debug("[main] Worker Failed during shutdown. Error: ", err)
+    cmdError(err)    
+  }  
+
 }
 
 func cmdError(err error) {

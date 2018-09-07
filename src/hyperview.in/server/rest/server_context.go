@@ -30,7 +30,7 @@ type ServerContext struct {
 }
 
 // TODO: add error logging and response
-// accessed by HTTP handlers so needs to be thread safe 
+// accessed by HTTP Handlers so needs to be thread safe 
 func NewServerContext(config *ServerConfig) *ServerContext{
 
   dir := config.BaseDir
@@ -55,7 +55,7 @@ func NewServerContext(config *ServerConfig) *ServerContext{
   tasker := tasks.NewShellTasker(dbc)
 
   kube_namespace:= "hflow"
-  flow_server := flow.NewFlowServer(dbc, kube_namespace)
+  flow_server := flow.NewFlowServer(dbc, kube_namespace, oapi)
 
   sc := &ServerContext{
     config: config,

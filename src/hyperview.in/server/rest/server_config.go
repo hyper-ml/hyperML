@@ -29,8 +29,8 @@ var DefaultMaxIncomingConnections = 0
 var ServerReadTimeout = 200
 var ServerWriteTimeout = 200
 
-func (config *ServerConfig) Serve(addr string, handler http.Handler) {
-  err := ListenAndServeHTTP(addr, DefaultMaxIncomingConnections, ServerReadTimeout, ServerWriteTimeout, handler)
+func (config *ServerConfig) Serve(addr string, Handler http.Handler) {
+  err := ListenAndServeHTTP(addr, DefaultMaxIncomingConnections, ServerReadTimeout, ServerWriteTimeout, Handler)
   
   if err != nil {
     base.Log("Failed to start HTTP Server on %s: %v", addr, err)

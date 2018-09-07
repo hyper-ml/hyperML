@@ -2,11 +2,11 @@ package rest_client
 
 import ( 
   "fmt"
+  "strconv"
   "encoding/json"
 
   "hyperview.in/server/base"
 )
-
 
 type Result struct {
   body        []byte
@@ -20,20 +20,29 @@ func NewResult(body []byte, contentType string, err error, statusCode int) Resul
   var body_json map[string]interface{}
   var ret_error error
   var reason string 
-  base.Debug("[result.NewResult] statusCode: ", statusCode)
+  //base.Debug("[result.NewResult] statusCode: ", statusCode)
 
   if statusCode > 201 && contentType == "application/json" { 
     err = json.Unmarshal(body, &body_json)
+
     err_string, _ := body_json["error"].(string)
-    base.Debug("[result.NewResult] err_string: ", err_string)
+    //base.Debug("[result.NewResult] err_string: ", err_string)
+    if err_string == "" {
+      err_string = "http Error: " + strconv.Itoa(statusCode)
+    }
+
     ret_error = fmt.Errorf(err_string)
-    reason = body_json["reason"].(string)
+
+    reason_bytes, _ := body_json["reason"]
+    if reason_bytes != nil {
+      reason = reason_bytes.(string)
+    }
   } 
 
   if ret_error == nil {
     ret_error = err
   }    
-  base.Debug("[result.NewResult] ret_error: ", ret_error)
+  //base.Debug("[result.NewResult] ret_error: ", ret_error)
 
   return Result {
     body: body,

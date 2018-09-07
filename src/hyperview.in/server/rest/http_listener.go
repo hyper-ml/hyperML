@@ -21,14 +21,14 @@ func init() {
   httpListenerExpvars.Set("max_active", &maxActiveExpvar)
 }
 
-func ListenAndServeHTTP(addr string, connLimit int,  readTimeout int, writeTimeout int, handler http.Handler) error {
+func ListenAndServeHTTP(addr string, connLimit int,  readTimeout int, writeTimeout int, Handler http.Handler) error {
   listener, err := RatedListen("tcp", addr, connLimit)
   if err != nil {
     return err
   }
 
   defer listener.Close()
-  server := &http.Server{Addr: addr, Handler: handler}
+  server := &http.Server{Addr: addr, Handler: Handler}
 
   if readTimeout != 0 {
     server.ReadTimeout = time.Duration(readTimeout) * time.Second

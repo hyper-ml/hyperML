@@ -12,8 +12,11 @@ import (
  
 )
 
+func raiseError(error_msg string) error{
+  return base.HTTPErrorf(http.StatusInternalServerError, error_msg)
+}
 
-func (h *handler) handleRoot() error {
+func (h *Handler) handleRoot() error {
 	response := map[string]interface{}{
     "hyperview": "version 0.1",
   }
@@ -24,7 +27,7 @@ func (h *handler) handleRoot() error {
 
 /* TODO: Add target dir 
 */
-func (h *handler) handleCreateObject() error {
+func (h *Handler) handleCreateObject() error {
   var err error 
 
   if (h.rq.Method != "POST") {
@@ -68,7 +71,7 @@ func (h *handler) handleCreateObject() error {
   return nil
 }
 
-func (h *handler) handleGetObject() error {
+func (h *Handler) handleGetObject() error {
   var err error
   if (h.rq.Method != "GET") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
@@ -80,21 +83,21 @@ func (h *handler) handleGetObject() error {
   offset_str := h.getQuery("offset")
   size_str := h.getQuery("size")
 
-  base.Debug("handleGetObject(): ", repo_name, commit_id, file_path, offset_str, size_str)
+  base.Debug("[Handler.handleGetObject] Params: ", repo_name, commit_id, file_path, offset_str, size_str)
 
   var offset int64
   var size int64
 
-  // convert strings to int64 
-  if offset, err = strconv.ParseInt(offset_str, 10, 64); err != nil {
-    base.Log("Failed to convert offset string to int64", offset_str)
-    return err 
-  }
-  if size, err = strconv.ParseInt(size_str, 10, 64); err!= nil {
-    base.Log("Failed to convert offset string to int64", offset_str)
-    return err
+  if offset_str != "" {
+    //string to int64 base 10
+    offset, err = strconv.ParseInt(offset_str, 10, 64); 
   }
 
+  if size_str != "" {
+    //string to int64 base 10
+    size, err = strconv.ParseInt(size_str, 10, 64); 
+  }
+ 
   file_attrs, err := h.server.workspaceApi.GetFileAttrs(repo_name, commit_id, file_path)
 
   if err != nil {
@@ -127,12 +130,13 @@ func (h *handler) handleGetObject() error {
 // What:  Gets Repo, Master Branch and Commit Info
 //
 
-func (h *handler) handleGetRepo() error {
+func (h *Handler) handleGetRepo() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
+  branchName := h.getQuery("branchName")
   
   //TODO: handle error
-  repo_attrs, branch_attr, commit_attrs, fmap, _ := h.server.workspaceApi.DownloadRepo(repoName)
+  repo_attrs, branch_attr, commit_attrs, fmap, _ := h.server.workspaceApi.DownloadRepo(repoName, branchName)
 
   // Repo Response:
   //    Repo
@@ -154,7 +158,7 @@ func (h *handler) handleGetRepo() error {
   return nil
 } 
 
-func (h *handler) handleGetRepoAttrs() error {
+func (h *Handler) handleGetRepoAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
 
@@ -183,7 +187,7 @@ func (h *handler) handleGetRepoAttrs() error {
 } 
 
 
-func (h *handler) handleGetBranchAttrs() error {
+func (h *Handler) handleGetBranchAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
 
@@ -214,7 +218,7 @@ func (h *handler) handleGetBranchAttrs() error {
   return nil
 } 
 
-func (h *handler) handleGetCommitAttrs() error {
+func (h *Handler) handleGetCommitAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
   commitId := h.getQuery("commitId")
@@ -243,7 +247,7 @@ func (h *handler) handleGetCommitAttrs() error {
 } 
 
 
-func (h *handler) handleGetCommitMap() error {
+func (h *Handler) handleGetCommitMap() error {
 
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
@@ -274,7 +278,7 @@ func (h *handler) handleGetCommitMap() error {
 
 
 
-func (h *handler) handleGetFileAttrs() error {
+func (h *Handler) handleGetFileAttrs() error {
   var response map[string]interface{}
   repoName := h.getQuery("repoName")
   commitId := h.getQuery("commitId")

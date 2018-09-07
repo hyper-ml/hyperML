@@ -29,10 +29,10 @@ func NewVfsServer(d *dbpkg.DatabaseContext, oapi storage.ObjectAPIServer) *VfsSe
 }
 
 // List files in a given commit from a directory
-func (vfs *VfsServer) ListDir(repoName string, commitId string, path string) (map[string]*FileAttrs, error) {
+func (vfs *VfsServer) ListDir(repoName string, branchName string, commitId string, path string) (map[string]*FileAttrs, error) {
   var err error
   
-  ctxn, err := NewCommitTxn(repoName, commitId, vfs.db)
+  ctxn, err := NewCommitTxn(repoName, branchName, commitId, vfs.db)
   if err != nil {
     base.Log("Failed to start a commit txn with given params: %s %s", repoName, commitId)
   }
@@ -58,11 +58,11 @@ func (vfs *VfsServer) ListDir(repoName string, commitId string, path string) (ma
 }
 
 
-func (vfs *VfsServer) Lookup(repoName string, commitId string, p string) (*FileAttrs, error) {
+func (vfs *VfsServer) Lookup(repoName string, branchName string, commitId string, p string) (*FileAttrs, error) {
   var f_info *FileAttrs
   var err error
 
-  ctxn, err := NewCommitTxn(repoName, commitId, vfs.db)
+  ctxn, err := NewCommitTxn(repoName, branchName, commitId, vfs.db)
   if err != nil {
     base.Log("[VfsServer.Lookup] Failed to start a commit txn with given params: %s %s", repoName, commitId)
     return nil, err

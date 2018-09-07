@@ -24,6 +24,8 @@ type ObjectAPIServer interface {
   Writer(path string) (io.WriteCloser, error) 
   
   CreateObject(parentDir string, fileReader io.Reader, inchunks bool) (string, string, int64, error)
+  SaveObject(objName string, parentDir string, fileReader io.Reader, inchunks bool) (obj_path string, chksm string, written int64, retErr error) 
+
   UpdateObject(parentDir string, objectHash string, fileReader io.Reader, inchunks bool) (string, string, int64, error)
   GetObject(name string, offset int64, size int64) ([]byte, int, error) 
   CheckObject(name string) bool
@@ -69,6 +71,22 @@ func newGoogleStorageAPIServer(dir string, cacheBytes int64) (*objAPIServer, err
 	}
 
 	return newObjectAPIServer(dir, storageClient, cacheBytes)
+}
+
+func newGoogleBucketAPIServer(bucket string, dir string, cacheBytes int64) (*objAPIServer, error) {
+  
+  if bucket == "" {
+    return nil, fmt.Errorf("Set GOOGLE_STORAGE_BUCKET variable to use google storage option")
+  }
+
+  storageClient, err := NewGoogleClient(context.Background(), bucket)
+  
+  if err != nil {
+    fmt.Println("Error occured creating google client:", err)
+    return nil, err
+  }
+
+  return newObjectAPIServer(dir, storageClient, cacheBytes)
 }
 
 
@@ -121,17 +139,20 @@ func  (s *objAPIServer) ReadSeeker(fpath string, offset int64, size int64) (io.R
     s: *s,
   }, nil
 }
+func (s *objAPIServer) CreateObject(parentDir string, fileReader io.Reader, inchunks bool) (obj_path string, chksm string, written int64, retErr error) {
+  obj_hash := utils.NewUUID()
+  return s.SaveObject(obj_hash, parentDir, fileReader, inchunks)
+}
   
 // TODO: add error channel and submit a go func to write object
 // TODO: add cancel with context
 //
-func (s *objAPIServer) CreateObject(parentDir string, fileReader io.Reader, inchunks bool) (obj_path string, chksm string, written int64, retErr error) {
+func (s *objAPIServer) SaveObject(objName string, parentDir string, fileReader io.Reader, inchunks bool) (obj_path string, chksm string, written int64, retErr error) {
 	var err error 
 
   cksum_hash := utils.NewHash()
 
-  obj_hash := utils.NewUUID()
-  obj_path = s.objPath(parentDir, obj_hash)
+  obj_path = s.objPath(parentDir, objName)
   
   r := io.TeeReader(fileReader, cksum_hash) 
   

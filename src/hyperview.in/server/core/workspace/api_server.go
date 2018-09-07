@@ -12,18 +12,27 @@ import (
 )
 
 type ApiServer interface { 
+  InitRepo(name string) (*RepoAttrs, error)
+  InitBranch(repoName, branchName, head string) (*BranchAttrs, error)
+
+  InitCommit(repoName, branchName string) (*CommitAttrs, error)
+  StartCommit(repoName, branchName string) (string, error)
+  EndCommit(repoName string, branchName string, commitId string) (error)
+  
   GetRepoAttrs(repoName string) (*RepoAttrs, error) 
   GetBranchAttrs(repoName string, branchName string) (*BranchAttrs, error)
   GetCommitAttrs(repoName string, commitId string) (*CommitAttrs, error) 
   GetCommitMap(repoName string, commitId string) (*FileMap, error) 
   
   GetFileAttrs(repoName string, commitId string, filePath string) (*FileAttrs, error)
-  DownloadRepo(repoName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error)
+  DownloadRepo(repoName, branchName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error)
 
-  PutFile(repoName string, commitId string, fpath string, reader io.Reader) (*FileAttrs, int64, error)
+  PutFile(repoName string, branchName string, commitId string, fpath string, reader io.Reader) (*FileAttrs, int64, error)
 
+  CreateDataset(name string) error 
   //CreateTask(config *task_pkg.TaskConfig) (*task_pkg.Task, error)
 }
+
 
 type apiServer struct {
 	version string
@@ -47,25 +56,69 @@ func NewApiServer(db *db_pkg.DatabaseContext, oapi storage.ObjectAPIServer) (*ap
   }, nil
 }
 
-func (a *apiServer) InitRepo(name string) error {
+
+func (a *apiServer) InitRepo(name string) (*RepoAttrs, error) {
   //TODO: auth, validate repo name
-    
-  newRepo := &Repo {
-      Name: name,
+  master_branch:= "master"
+  repo_name := name
+  var err error 
+
+  new_repo := &Repo {
+      Name: repo_name,
   }
 
-  //newBranch := &Branch {Repo: newRepo, Name: "master"}
+  new_branch := &Branch {
+    Repo: new_repo, 
+    Name: master_branch,
+  }
 
-  newRepoAttrs :=  &RepoAttrs {
-    Repo: newRepo,
+  branch_attrs:= &BranchAttrs { Branch: new_branch }
+
+  err = a.q.InsertBranchAttrs(repo_name, master_branch, branch_attrs)
+
+  repo_attrs :=  &RepoAttrs {
+    Repo: new_repo,
   }
   
-  newRepoAttrs.Description = "New Repo"
+  repo_attrs.Description = "New Repo"
+  repo_attrs.Type = STANDARD_REPO
+  repo_attrs.AddBranch(new_branch)
+
+  err = a.q.InsertRepoAttrs(repo_name, repo_attrs)
+  if err != nil {
+    base.Log("[apiServer.InitRepo] Failed to create repo: ", err)
+    _ = a.q.DeleteBranch(repo_name, master_branch)
+    return nil, err
+  } 
+
+  return repo_attrs, nil
+}
+
+
+func ( a *apiServer) InitBranch(repoName, branchName, headCommitId string) (*BranchAttrs, error) {
+  var head *Commit
+
+  if headCommitId != "" {
+    commit_attrs, err := a.q.GetCommitAttrsById(repoName, headCommitId)
+    if err != nil {
+      return nil, err 
+    }
+    head = commit_attrs.Commit
+  }
   
+  repo_attrs, err := a.q.GetRepoAttrs(repoName)
+  if err != nil {
+    base.Log("[apiServer.InitBranch] Failed to retrieve repo attributes for : ", repoName)
+    return nil, err
+  }
 
-  err := a.db.Insert(REPO_KEY_PREFIX + name, newRepoAttrs)
-
-  return err 
+  new_branch := &Branch {Repo: repo_attrs.Repo, Name: branchName}
+  new_branch_attrs:= &BranchAttrs {Branch: new_branch, Head: head}
+  err = a.q.InsertBranchAttrs(repoName, branchName, new_branch_attrs)
+  if err != nil {
+    return nil, err
+  }
+  return new_branch_attrs, nil
 }
 
 // TODO: handle errors and add validations
@@ -79,17 +132,25 @@ func (a *apiServer) GetRepo(name string) (*RepoAttrs, error) {
   return a.q.GetRepoAttrs(name)
 }
  
+func (a *apiServer) InitCommit(repoName, branchName string) (*CommitAttrs, error) {
+  var commit_id string
+  ct, err := NewCommitTxn(repoName, branchName, commit_id, a.db)
+  if err != nil {
+    return nil, err
+  }
+  return ct.Init() 
+} 
 
-func (a *apiServer) StartCommit(repoName string) (commitId string, err error) {
-  ct, err := NewCommitTxn(repoName, "", a.db)
+func (a *apiServer) StartCommit(repoName, branchName string) (commitId string, err error) {
+  ct, err := NewCommitTxn(repoName, branchName, "", a.db)
   if err != nil {
     return "", err
   }
   return ct.Start() 
 }
 
-func (a *apiServer) EndCommit(repoName string, commitId string) (error) {
-  ct, err := NewCommitTxn(repoName, commitId, a.db)
+func (a *apiServer) EndCommit(repoName string, branchName string, commitId string) (error) {
+  ct, err := NewCommitTxn(repoName, branchName, commitId, a.db)
   if err != nil {
     return err
   }
@@ -97,16 +158,11 @@ func (a *apiServer) EndCommit(repoName string, commitId string) (error) {
 }
 
 
-func (a *apiServer) CloseOpenCommit(repoName string) error {
+func (a *apiServer) CloseOpenCommit(repoName, branchName string) error {
   var branch_attr *BranchAttrs
   var err error 
-
-  if !a.q.CheckRepoExists(repoName) {
-    base.Log("Failed to retrieve Repo Info: %s", repoName)
-    return fmt.Errorf("Failed to retrieve Repo Info: %s", repoName)
-  }
-
-  if branch_attr, err = a.q.GetBranchAttrs(repoName, "master"); err != nil {
+  
+  if branch_attr, err = a.q.GetBranchAttrs(repoName, branchName); err != nil {
     base.Log("Failed to retrieve Branch Info")
     return err
   }
@@ -115,11 +171,11 @@ func (a *apiServer) CloseOpenCommit(repoName string) error {
     return fmt.Errorf("No commits in this repo")
   } 
 
-  return a.EndCommit(repoName, branch_attr.Head.Id)
+  return a.EndCommit(repoName, branchName, branch_attr.Head.Id)
 }
 
-func (a *apiServer) IsOpenCommit(repoName string, commitId string, fpath string) bool {
-  ct, _ := NewCommitTxn(repoName, commitId, a.db)
+func (a *apiServer) IsOpenCommit(repoName string, branchName string, commitId string, fpath string) bool {
+  ct, _ := NewCommitTxn(repoName, branchName, commitId, a.db)
   return ct.IsOpenCommit()
 }
  
@@ -127,12 +183,12 @@ func (a *apiServer) IsOpenCommit(repoName string, commitId string, fpath string)
 
 
 // put file by reader
-func (a *apiServer) PutFile(repoName string, commitId string, fpath string, reader io.Reader) (*FileAttrs, int64, error) {
+func (a *apiServer) PutFile(repoName string, branchName string, commitId string, fpath string, reader io.Reader) (*FileAttrs, int64, error) {
    
   var size int64 
   var err error  
 
-  ct, err := NewCommitTxn(repoName, commitId, a.db)
+  ct, err := NewCommitTxn(repoName, branchName, commitId, a.db)
   if err != nil {
     base.Log("[apiServer.PutFile] Failed to create commit txn", err)
     return nil, 0, err
@@ -192,17 +248,15 @@ func (a *apiServer) PutFile(repoName string, commitId string, fpath string, read
 }
  
 
-func (a *apiServer) AddFileToRepo(repoName string, path string, reader io.Reader) (int64, error) {
+func (a *apiServer) AddFileToRepo(repoName string, branchName string, path string, reader io.Reader) (int64, error) {
   // find master branch and commit 
   // raise error if no open commit 
-  var size int64
-  repo_attrs, err := a.q.GetRepoAttrs(repoName)
+  var size int64 
 
-  if err != nil {
+  if !a.q.CheckRepoExists(repoName) {
     base.Log("Invalid Repo - %s", repoName)
-    return 0, err
+    return 0, errInvalidRepoName(repoName)
   }
-
  
   // create object in store first 
   objName, cs, size, err :=  a.objWrapper.CreateObject(reader) 
@@ -211,10 +265,10 @@ func (a *apiServer) AddFileToRepo(repoName string, path string, reader io.Reader
     return 0, err
   }
 
-  branch_attr, err := a.q.GetBranchAttrs(repoName, repo_attrs.Branch.Name)
+  branch_attr, err := a.q.GetBranchAttrs(repoName, branchName)
 
   // add object metadat to DB
-  ct, err := NewCommitTxn(repoName, branch_attr.Head.Id, a.db)
+  ct, err := NewCommitTxn(repoName, branchName, branch_attr.Head.Id, a.db)
   if err != nil {
     base.Log("Failed to create commit txn", err)
     return 0, err
@@ -233,7 +287,7 @@ func (a *apiServer) AddFileToRepo(repoName string, path string, reader io.Reader
 
 
 
-func (a *apiServer) DownloadRepo(repoName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error) {
+func (a *apiServer) DownloadRepo(repoName, branchName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error) {
   
   repo_attrs, err := a.q.GetRepoAttrs(repoName)
   if err != nil {
@@ -241,7 +295,7 @@ func (a *apiServer) DownloadRepo(repoName string) (*RepoAttrs, *BranchAttrs, *Co
     return nil, nil, nil, nil, err
   }
 
-  branch_attr, err := a.q.GetBranchAttrs(repoName, repo_attrs.Branch.Name)
+  branch_attr, err := a.q.GetBranchAttrs(repoName, branchName)
   commit_head :=branch_attr.Head.Id
   commit_attrs, err:= a.GetCommitAttrs(repoName, commit_head)
 

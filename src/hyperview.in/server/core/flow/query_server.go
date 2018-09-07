@@ -3,6 +3,8 @@ package flow
 import(
   "fmt"
   "time"
+  "golang.org/x/sync/errgroup"
+
   "hyperview.in/server/base"
   "encoding/json"
   "hyperview.in/server/core/utils"
@@ -22,15 +24,31 @@ func NewQueryServer(db *db_pkg.DatabaseContext) *queryServer {
   }
 }
 
+func InvalidTaskError(taskId string) error{
+  return fmt.Errorf("invalid_task: This task does not exist in curernt flow. Invalid Task Id: %s", taskId)
+}
+
+func InvalidTaskStatusError() error{
+  return fmt.Errorf("invalid_status_error: This task is already complete with status Success or failed")
+}
+
+func InvalidWorkerFlowCombo() error {
+  return fmt.Errorf("invalid_worker_flow_combo: Invalid worker-flow-task combination. ")
+}
+
+func InvalidFlowId() error {
+  return fmt.Errorf("invalid_flow_id: Flow Id is either missing or invalid")
+}
+
+
 func (qs *queryServer) flowKey(Id string) string {
   return "flow:" + Id
 }
   
-
+// TODO: raise error if flow Id is invalid
 func (qs *queryServer) GetFlowAttr(flowId string) (*FlowAttrs, error) {
   flow_key := qs.flowKey(flowId)
-
-  FlowAttrs_raw, err := qs.db.Get(flow_key)
+  flowAttrs_raw, err := qs.db.Get(flow_key)
 
   if err != nil {
     base.Log("[queryServer.GetFlowAttr] Flow Record for this ID does not exist. ", flowId)
@@ -38,7 +56,7 @@ func (qs *queryServer) GetFlowAttr(flowId string) (*FlowAttrs, error) {
   }
 
   FlowAttrs:= FlowAttrs{}
-  err = json.Unmarshal(FlowAttrs_raw, &FlowAttrs)
+  err = json.Unmarshal(flowAttrs_raw, &FlowAttrs)
   if err != nil {
     base.Log("[queryServer.GetFlowAttr] Failed to convert raw object to Flow Info", flowId)
     return nil, err
@@ -105,11 +123,55 @@ func (qs *queryServer) DeleteFlow(flowId string) error {
   return err
 }
 
+func (qs *queryServer) GetTaskByFlowId(flowId, taskId string) (*TaskAttrs, error) {
+  var task_attrs TaskAttrs
+  var ok bool
+
+  if flowId == "" {
+    return nil, InvalidFlowId()
+  }
+
+  flow_attrs, err := qs.GetFlowAttr(flowId)
+  if err!= nil {
+    return nil, err
+  }
+  if taskId == "" && len(flow_attrs.Tasks) == 1 {
+    return flow_attrs.FirstTask(), nil
+  } else {
+    task_attrs, ok = flow_attrs.Tasks[taskId] 
+    if !ok {
+      return nil, InvalidTaskError(taskId)
+    }   
+  }
+  
+  return &task_attrs, nil
+}
+
+func (qs *queryServer) UpdateTaskByFlowId(flowId string, attrs TaskAttrs) error {
+  task_id := attrs.Task.Id
+  
+  flow_attrs, err := qs.GetFlowAttr(flowId)
+  
+  if err != nil {
+    return err
+  }
+
+  flow_attrs.Tasks[task_id] = attrs
+  err = qs.UpdateFlow(flowId, flow_attrs)
+
+  if err != nil {
+    base.Log("[queryServer.UpdateTaskAttrsByFlowId] Failed to update flow with task attributes: ", err)
+    return err
+  }
+  
+  return nil
+}
 
 
 func taskWorkerKey(flowId, taskId string) string {
   return "flow:" + flowId + ":task:" + taskId + ":worker"
 }
+
 
 func (qs *queryServer) GetWorkerByTaskId(flowId, taskId string) *FlowTaskWorker {
   w_key:= taskWorkerKey(flowId, taskId)
@@ -117,7 +179,7 @@ func (qs *queryServer) GetWorkerByTaskId(flowId, taskId string) *FlowTaskWorker 
   ftw_raw, err := qs.db.Get(w_key)
 
   if err != nil {
-    base.Log("[queryServer.GetWorkerByTaskId] Failed to retrieve Flow Task Worker record: ", w_key)
+    base.Log("[queryServer.GetWorkerByTaskId] Failed to retrieve Flow Task Worker record: ", w_key, err)
     return nil
   } 
 
@@ -149,6 +211,24 @@ func (qs *queryServer) InsertTaskWorker(f Flow, t Task, w Worker) (*FlowTaskWork
 }
 
 
+func (qs *queryServer) UpsertTaskWorker(f Flow, t Task, w Worker) (*FlowTaskWorker, error) {
+  w_key:= taskWorkerKey(f.Id, t.Id)
+
+  ftw := &FlowTaskWorker {
+      Worker: w,
+      Flow: f,
+      Task: t,
+      Created: time.Now(),
+    }
+    
+  err:= qs.db.Upsert(w_key, ftw)
+  if err != nil {
+    return nil, err
+  }
+
+  return ftw, nil
+}
+
 func workerKey(workerId string) string {
   return "worker:" + workerId
 }
@@ -174,7 +254,35 @@ func (qs *queryServer) registerW(flowId string, taskId string, ipAddress string)
   
   // check if a worker already exists agains this task
   // current flow task worker record
-  cftw_rec := qs.GetWorkerByTaskId(flowId, taskId) 
+
+  var g errgroup.Group
+  var cftw_rec *FlowTaskWorker
+  var task_attrs *TaskAttrs
+  var err error
+
+  g.Go(func() error {
+      task_attrs, err = qs.GetTaskByFlowId(flowId, taskId) 
+      if task_attrs.Status >= TASK_RUNNING {
+        base.Log("[queryServer.registerW] Invalid task status: ", task_attrs.Status, flowId, taskId)
+        return InvalidTaskStatusError()      
+      }
+
+      return err
+    })
+
+
+  g.Go(func() error {
+      cftw_rec = qs.GetWorkerByTaskId(flowId, taskId) 
+      return nil
+    })
+
+
+  if err := g.Wait(); err != nil {
+      return nil, err
+    }
+   
+  
+   
   if cftw_rec != nil {
     if cftw_rec.Worker.Id != "" {
 
@@ -214,12 +322,12 @@ func (qs *queryServer) registerW(flowId string, taskId string, ipAddress string)
     Status: WORKER_REGISTERED,
   }
 
-  err := qs.db.Insert(w_key, w_attrs)
+  err = qs.db.Insert(w_key, w_attrs)
   if err != nil {
     return nil, err 
   }
 
-  _, err = qs.InsertTaskWorker(w_attrs.Flow, w_attrs.Task, w_attrs.Worker)
+  _, err = qs.UpsertTaskWorker(w_attrs.Flow, w_attrs.Task, w_attrs.Worker)
   if err != nil {
     // TODO: delete worker too
     return nil, err
@@ -229,16 +337,21 @@ func (qs *queryServer) registerW(flowId string, taskId string, ipAddress string)
 }
 
 
-func (qs *queryServer) unregisterW(workerId string) error {
+func (qs *queryServer) DetachTaskWorker(workerId, flowId, taskId string) error {
   
-  worker_attrs, err := qs.GetWorkerAttrs(workerId)
+  w_attrs, err := qs.GetWorkerAttrs(workerId)
   if err != nil {
-    base.Log("[queryServer.unregisterW] Failed to retrieve worker: ", workerId)
+    base.Log("[queryServer.DetachTaskWorker] Failed to retrieve worker: ", workerId)
     return err
+  }
+  
+  if w_attrs.Flow.Id != flowId {
+    base.Log("[queryServer.DetachTaskWorker] Invalid worker-flow-task combination: ", workerId, flowId, taskId)
+    return InvalidWorkerFlowCombo()
   }
 
   // insert nil worker
-  _, err = qs.InsertTaskWorker(worker_attrs.Flow, worker_attrs.Task, Worker{})
+  _, err = qs.UpsertTaskWorker(w_attrs.Flow, w_attrs.Task, Worker{})
   
   if err != nil {
     return err

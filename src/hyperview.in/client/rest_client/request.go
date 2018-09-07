@@ -24,7 +24,7 @@ type HTTPClient interface {
 
 
 type Request struct {
-	client HTTPClient
+  client HTTPClient
   verb   string
   baseURL     *url.URL
 
@@ -47,18 +47,26 @@ type Request struct {
 
 //ToDO: result into
 // TODO: add config param
-func NewRequest(client HTTPClient, verb string, baseURL *url.URL, apiPath string, timeout time.Duration) *Request {
+func NewRequest(client HTTPClient, verb string, baseURL *url.URL, apiPath string, subPath string, timeout time.Duration) *Request {
 
   pathPrefix := "/"
   if baseURL != nil {
     pathPrefix = path.Join(pathPrefix, baseURL.Path)
   }
 
+  if apiPath != "" {
+    pathPrefix = path.Join(pathPrefix, apiPath)
+  }
+
+  if subPath != "" {
+    pathPrefix = path.Join(pathPrefix, subPath)
+  }
+
   r := &Request{
     client:      client,
     verb:        verb,
     baseURL:     baseURL,
-    pathPrefix:  path.Join(pathPrefix, apiPath),
+    pathPrefix:  pathPrefix,
   }
   r.SetHeader("Accept", "application/json")
 
@@ -72,7 +80,7 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
     client = http.DefaultClient
   }
 
-  maxRetries := 2
+  maxRetries := 1
   retries := 0
   for {
     url := r.URL().String()
@@ -98,6 +106,7 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
     resp, err := client.Do(req) 
 
     if err != nil {
+
       if !IsConnectionReset(err) || r.verb != "GET" {
         return err
       }
@@ -174,11 +183,14 @@ func (r *Request) processJsonResponse(resp *http.Response, req *http.Request) Re
   
   if resp.Body != nil {
     body, err = ioutil.ReadAll(resp.Body)
+    //base.Debug("[Request.processJsonResponse] Result: ", string(body), err)
 
-    if err!= nil {
+    if err != nil {
+      base.Log("[Request.processJsonResponse] HTTP request Failed: ", err)
       return Result{err: err}
-    }   
+    }
 
+     //TODO: change content type based on response
     return NewResult(body, "application/json" , err, resp.StatusCode)
   }
   return Result{}
@@ -202,6 +214,11 @@ func (r *Request) setParam(paramName, value string) *Request {
   return r
 }
 
+func (r *Request) PrintParams() error {
+  base.Log("Request params:", r.params)
+  return nil
+}
+
 
 func (r *Request) SetHeader(key string, values ...string) *Request {
   if r.headers == nil {
@@ -214,11 +231,16 @@ func (r *Request) SetHeader(key string, values ...string) *Request {
   return r
 }
 
-/*
-func (r *Request) Body(obj interface{}) *Request {
+func (r *Request) SetBodyReader(t io.Reader) *Request {
+  r.body = t
+  return r
+}
+
+/*func (r *Request) Body(obj interface{}) *Request {
   if r.err != nil {
     return r
   }
+
   switch t := obj.(type) {
   case string:
     r.body = strings.NewReader(obj)
@@ -290,3 +312,25 @@ func (r *Request) DoRaw() ([]byte, error) {
   }
   return result.body, result.err
 }
+
+// read raw output from server
+func (r *Request) ReadResponse() (io.ReadCloser, error) {
+  client := r.client
+  if client == nil {
+    client = http.DefaultClient
+  }
+
+  url := r.URL().String()
+
+  req, err := http.NewRequest(r.verb, url, nil)
+  req.Header = r.headers
+
+  resp, err := client.Do(req)  
+
+  if err != nil {
+    return nil, err
+  }
+
+  return resp.Body, nil
+} 
+

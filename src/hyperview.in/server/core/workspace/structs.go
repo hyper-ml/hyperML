@@ -18,14 +18,35 @@ func NewRepo(name string) *Repo{
   }
 }
 
+type RepoType int
+const (
+  STANDARD_REPO RepoType = iota
+  DATASET
+)
 
 // TODO: add created, updated etc
 type RepoAttrs struct {
   Repo *Repo 
+  Type RepoType
   Size_bytes uint64
   Description string
-  Branch *Branch 
+  lock sync.RWMutex
+  Branches map[string]*Branch 
+  Datasets map[string]*Repo 
 }
+
+func (ra *RepoAttrs) AddBranch(branch *Branch) {
+  ra.lock.Lock()
+  defer ra.lock.Unlock()
+  
+  if ra.Branches == nil {
+    ra.Branches = make(map[string]*Branch)
+  }
+
+  ra.Branches[branch.Name] = branch
+//  return fm
+}
+
 
 type Branch struct {
   Repo *Repo
@@ -56,6 +77,11 @@ type CommitAttrs struct {
 
 func (ci *CommitAttrs) Id() string{
   return ci.Commit.Id
+}
+
+
+func (ci *CommitAttrs) IsOpen() bool {
+  return ci.Finished.IsZero()
 }
 
 

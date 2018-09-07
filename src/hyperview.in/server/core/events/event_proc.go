@@ -1,5 +1,6 @@
 package events
 
+/* Not used at this moment */
 
 type EventType int
 

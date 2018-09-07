@@ -1,21 +1,28 @@
 package flow
 
 import ( 
-  //"time"
+  "fmt"
+  "time"
   //"context"
+  "golang.org/x/sync/errgroup"
+
+
   //"hyperview.in/server/base/backoff"
+  task_pkg "hyperview.in/server/core/tasks"
   "hyperview.in/server/base"
   db_pkg "hyperview.in/server/core/db"
 )
 
 type FlowEngine interface{
-  StartFlow(Id string) error
+  StartFlow(flowId, taskId string) (task_pkg.TaskStatus, error)
+  LaunchFlow(repoName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error)
 }
 
 
 type flowEngine struct {
   qs *queryServer
   db *db_pkg.DatabaseContext
+  wpool WorkerPool
   namespace string
   defaultImage string
   dockerPullPolicy string
@@ -25,10 +32,29 @@ type flowEngine struct {
 }
 
 func NewFlowEngine(qs *queryServer, db *db_pkg.DatabaseContext) *flowEngine{
+  wp := NewWorkerPool(db)
+
   return &flowEngine{
     qs: qs,
     db: db,
+    wpool: wp,
   }
+}
+
+func TaskWorkerExistsError(flowId, taskId string) error{
+  return fmt.Errorf("[flowEngine] Worker already executing this flow task: %s %s", flowId, taskId)
+}
+
+func ErrTaskComplete() error {
+  return fmt.Errorf("invalid_task_update: task already complete")
+}
+
+func InvalidFlowIdError(flowId string) error {
+  return fmt.Errorf("[flowEngine] Invalid flow Id: %s", flowId)
+}
+
+func InvalidFlowParamsError(flowId string) error {
+  return fmt.Errorf("[flowEngine] Invalid flow parameter: %s", flowId)
 }
 
 // monitor new messages from the worker pod or update on flow status
@@ -36,25 +62,64 @@ func NewFlowEngine(qs *queryServer, db *db_pkg.DatabaseContext) *flowEngine{
 
 func (fe *flowEngine) master(quit chan int) {
   
-  eventCh := make(chan interface{})
-  fe.db.Listener.RegisterObject(eventCh, Flow{})
+  event_chan := make(chan interface{})
+  fe.db.Listener.RegisterObject(event_chan, Flow{})
   base.Log("[flowEngine.master] Starting Flow Master")
+
+  w_chan:= NewWorkPoolWatcher()
+  
+  go fe.wpool.Watch(w_chan)
+
+
   for {
     select {
-      case event_val, ok := <- eventCh:
+      case evtval, ok := <- event_chan:
+        base.Debug("[flowEngine.master] Received an event: ", &evtval)
         if !ok {
           return
         }
 
-        FlowAttrs, ok := event_val.(*FlowAttrs)
+        flowAttrs, ok := evtval.(*FlowAttrs)
         
         if !ok {
           base.Log("[flowEngine.master] Oops not a flow record")
           break
         } 
 
-        base.Debug("[flowEngine.master] Flow Record: %v\n", FlowAttrs.Flow.Id)
+        base.Debug("[flowEngine.master] Flow Record: ", flowAttrs.Flow.Id)
+      
+      case w_evt, ok := <- w_chan: 
+        base.Debug("[flowEngine.master] Received kube event: ", w_evt.Type) 
+        if !ok {
+          break
+        }
 
+        flow := w_evt.Flow
+        //worker := w_evt.Worker
+
+        /*if worker.PodId != "" {
+          // TODO: multiple writes happening
+          err := fe.wpool.SaveWorkerLog(worker, flow)
+          if err != nil {
+            base.Debug("[flowEngine.master] Save worker log error: ", err)
+          }
+        }*/
+        
+        if w_evt.Type == "ERROR" || w_evt.Type == "DELETED" || 
+           w_evt.Type == WorkerError || w_evt.Type == WorkerDeleted {
+          base.Debug("[FlowEngine.Master] Event type error found ", w_evt.Type, flow.Id)
+          
+          if flow.Id != "" {
+            var task_id string
+            // retrieve task Id 
+            task_id = flow.Id 
+            fe.processFlowError(flow.Id, task_id, string(w_evt.Type))
+            // call update on flow. Set status to message
+          }
+        }
+
+        // on failure shutdown and update status. Check why error is not being caputred
+        
       case <-quit:
         base.Log("[flowEngine.master] Quiting flow Engine master..")
         return
@@ -87,25 +152,178 @@ func (fe *flowEngine) master(quit chan int) {
     })*/
 }
 
+
  
+func (fe *flowEngine) StartFlow(flowId, taskId string) (task_pkg.TaskStatus, error) {
+  flow_attrs, err:= fe.qs.GetFlowAttr(flowId)
+  current_status := flow_attrs.Tasks[taskId].Status
 
-func (fe *flowEngine) StartFlow(Id string) error {
+  if err != nil {
+    return current_status, InvalidFlowIdError(flowId)
+  }
+  if !fe.wpool.WorkerExists(flowId, taskId) {
+    err = fe.wpool.AssignWorker(taskId, flow_attrs)
+    
+    if err != nil {
+      
+      // update status of task
+      if err = fe.processFlowError(flowId, taskId, err.Error()); err != nil {
+        return current_status, nil
+      }
 
+      return task_pkg.TASK_FAILED, nil
+    }
 
-  return nil
+    return task_pkg.TASK_ASSIGNED, nil
+
+  } else {
+    // TODO: check if worker is active if not then flush it and restart a new worker
+    return current_status, TaskWorkerExistsError(flowId, taskId)
+  }
+  // return worker ID
+  return current_status, nil
+
 }
+
+func (fe *flowEngine) processFlowError(flowId, taskId, message string) error {
  
+  var eg errgroup.Group
+  
+  f := Flow { 
+        Id: flowId,
+    }
+
+  //release worker from pool
+  // check if worker is assigned. Release only then
+  eg.Go(func () error {  
+      if task_worker := fe.qs.GetWorkerByTaskId(flowId, taskId); task_worker == nil {
+        base.Debug("[flowEngine.processFlowError] No task worker for this flow task :", flowId, taskId)
+        return nil
+      }
+      
+      err := fe.wpool.ReleaseWorker(f)
+      return err 
+    })
+  
+  // update status of flow and remove worker assignment 
+  eg.Go(func () error {  
+      err := fe.updateTaskStatus(flowId, taskId, task_pkg.TASK_FAILED)
+      err = fe.workerCleanUp(f)
+      return err 
+    })
+
+  return eg.Wait()
+}
+
+func (fe *flowEngine) Logworker(flow Flow, worker Worker) error { 
+  
+  //var w io.Writer 
+  err := fe.wpool.SaveWorkerLog(worker, flow)
+  return err
+}
+
+func (fe *flowEngine) workerCleanUp(flow Flow) error {
+  return fe.wpool.ReleaseWorker(flow)
+}
+
+// create flow with a single task
+func (fe *flowEngine) createSimpleFlow(repoName string, commitId string, cmdString string) (*FlowAttrs, error) {
+  wdir := "/workspace"
+ 
+  mount_map := task_pkg.NewMountConfig(repoName, commitId, wdir, 0)
+  flow_config := &FlowConfig{
+    MountMap: mount_map,
+  }
+
+  // new flow attr rec
+  new_flow :=  NewFlowAttrs(flow_config) 
+
+  // insert task
+  task_config:= task_pkg.NewTaskConfig(cmdString, nil, wdir, mount_map)
+  
+  // add task 
+  _ = new_flow.AddTask(task_config)
+
+  err :=  fe.qs.InsertFlow(new_flow)
+
+  return new_flow, err
+}
 
 
+func (fe *flowEngine) LaunchFlow(repoName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error) {
+  // 1. create a new flow - task
+  // 2. start flow 
 
+  flow_attrs, _ := fe.createSimpleFlow(repoName, commitId, cmdString)
+  
+  var task_id string
+  for _, task_attrs := range flow_attrs.Tasks {
+    task_id = task_attrs.Task.Id
+    break
+  }
 
+  status, err:= fe.StartFlow(flow_attrs.Flow.Id, task_id)
 
+  if err != nil {
+    return nil, status, err
+  }
 
+  return &flow_attrs.Flow, status, nil
+}
+/*
+func (fe *flowEngine) updateWorkerTaskStatus(workerId string, flowId string, taskId string, newStatus  task_pkg.TaskStatus) (error) {
+  
+  w:= Worker { Id: workerId }
+  f:= Flow { Id: flowId }
+  _ = fe.Logworker(f, w)
 
+  return fe.updateTaskStatus(flowId, taskId, newStatus)
+} 
+*/
 
+func (fe *flowEngine) updateTaskStatus(flowId string, taskId string, newStatus task_pkg.TaskStatus) (error) {
+   
+  task_attrs, err  := fe.qs.GetTaskByFlowId(flowId, taskId)
+  if err != nil {
+    return err
+  }
 
+  if task_attrs.Status == task_pkg.TASK_COMPLETED {
+    return ErrTaskComplete()
+  }
+  
+  task_attrs.Status = newStatus
 
+  switch s := newStatus; s {
+  
+  case task_pkg.TASK_CREATED:
+    task_attrs.Created = time.Now()
+  
+  case task_pkg.TASK_COMPLETED:
+    //TODO: should come in the request from worker
+    task_attrs.Completed = time.Now()
+  
+  case task_pkg.TASK_INITIATED:
+    if task_attrs.Completed.IsZero() {
+      task_attrs.Started = time.Now()
+    } else {
+      return errorCompletedTask() 
+    }
+  
+  case task_pkg.TASK_FAILED:
+    if task_attrs.Completed.IsZero() {
+      task_attrs.Failed = time.Now()
+    } else {
+      return errorCompletedTask()
+    }
+  } 
 
+  if err := fe.qs.UpdateTaskByFlowId(flowId, *task_attrs); err == nil {
+    return  nil
+  }
+
+  return err
+}
 
 
 

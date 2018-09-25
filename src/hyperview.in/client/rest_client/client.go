@@ -33,6 +33,9 @@ type RESTClient struct {
   Client *http.Client
 }
 
+func New(baseURL *url.URL, apiPath string) (*RESTClient, error) {
+  return NewRESTClient(baseURL, apiPath, http.DefaultClient)
+}
 
 //TODO: add max qps, max burst for throttle, rate limiter etc
 func NewRESTClient(baseURL *url.URL, apiPath string, client *http.Client) (*RESTClient, error) {
@@ -49,6 +52,7 @@ func NewRESTClient(baseURL *url.URL, apiPath string, client *http.Client) (*REST
     Client: client,
   }, nil
 }
+
 
 // verb with subpath
 func (c *RESTClient) VerbSp(verb string, subPath string) *Request {

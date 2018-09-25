@@ -19,9 +19,11 @@ type ApiServer interface {
   InitCommit(repoName, branchName, commitId string) (*CommitAttrs, error)
   StartCommit(repoName, branchName string) (string, error)
   EndCommit(repoName string, branchName string, commitId string) (error)
-  
-  GetOrCreateModelRepo(repoName, branchName, commitId string) (*RepoAttrs, error)
 
+  GetModel(srcRepoName, srcBranchName, srcCommitId string) (*Repo, *Branch, *Commit, error)
+  GetOrCreateModel(srcRepoName, srcBranchName, srcCommitId string) (*Repo, *Branch, *Commit, error)
+
+  GetRepo(repoName string) (*Repo, error)
   GetRepoAttrs(repoName string) (*RepoAttrs, error) 
   GetBranchAttrs(repoName string, branchName string) (*BranchAttrs, error)
   GetCommitAttrs(repoName string, commitId string) (*CommitAttrs, error) 
@@ -31,7 +33,8 @@ type ApiServer interface {
   GetCommitSize(repoName, branchName, commitId string) (int64, error) 
   GetBranchSize(repoName, branchName string) (int64, error)
 
-  DownloadRepo(repoName, branchName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error)
+  ExplodeRepoAttrs(repoName, branchName, commitId string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error)
+  ExplodeRepo(repoName, branchName string) (*Repo, *Branch, *Commit, error)
 
   PutFile(repoName string, branchName string, commitId string, fpath string, reader io.Reader) (*FileAttrs, int64, error)
 
@@ -145,7 +148,7 @@ func ( a *apiServer) InitBranch(repoName, branchName, headCommitId string) (*Bra
 // TODO: handle errors and add validations
 func (a *apiServer) RemoveRepo(name string) error {
   // loop through repo branches and delete 
-  repo_attrs, err := a.GetRepo(name)
+  repo_attrs, err := a.GetRepoAttrs(name)
   if err != nil {
     return err 
   }
@@ -167,9 +170,7 @@ func (a *apiServer) RemoveRepo(name string) error {
   return nil
 }
 
-func (a *apiServer) GetRepo(name string) (*RepoAttrs, error) {
-  return a.q.GetRepoAttrs(name)
-}
+
  
 func (a *apiServer) InitCommit(repoName, branchName, commitId string) (*CommitAttrs, error) {
   var commit_id string = commitId
@@ -325,13 +326,18 @@ func (a *apiServer) AddFileToRepo(repoName string, branchName string, path strin
 }
 
 
+//TODO: add code for commitId 
+func (a *apiServer) ExplodeRepoAttrs(repoName, branchName, commitId string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error) {
+  branch_name := branchName 
 
-func (a *apiServer) DownloadRepo(repoName, branchName string) (*RepoAttrs, *BranchAttrs, *CommitAttrs, *FileMap, error) {
-  
   repo_attrs, err := a.q.GetRepoAttrs(repoName)
   if err != nil {
     base.Log("Invalid Repo - %s", repoName)
     return nil, nil, nil, nil, err
+  }
+  
+  if branch_name == "" {
+    branch_name = DefaultBranch
   }
 
   branch_attr, err := a.q.GetBranchAttrs(repoName, branchName)
@@ -341,38 +347,63 @@ func (a *apiServer) DownloadRepo(repoName, branchName string) (*RepoAttrs, *Bran
   fmap, err:= a.q.GetFileMap(repoName, commit_head)
 
   return repo_attrs, branch_attr, commit_attrs, fmap, nil
-
 }
 
-func (a *apiServer) CreateModelRepo(srcRepoName, srcBranchName, srcCommitId string) (*RepoAttrs, error) {
-  repo_name := getModelRepoName(srcRepoName, srcCommitId)
-  repo_attrs, err:= a.InitTypedRepo(MODEL, repo_name)
+func (a *apiServer) ExplodeRepo(repoName, branchName string) (*Repo, *Branch, *Commit, error) {
+  
+  repo, err := a.GetRepo(repoName)
   if err != nil {
-    base.Log("[FlowServer.CreateModelRepo] Failed to create model repo: ", err)
-    return nil, err
+    base.Debug("[apiServer.ExplodeRepo] Invalid Repo - %s", repoName)
+    return nil, nil, nil, err
   }
 
-  return repo_attrs, nil
+  branch_attr, err := a.q.GetBranchAttrs(repoName, branchName)
+  if err != nil {
+    base.Debug("[apiServer.ExplodeRepo] Invalid branch - %s", repoName)
+    return nil, nil, nil, err
+  }
+
+  return repo, branch_attr.Branch, branch_attr.Head, nil
 }
 
-func (a *apiServer) GetModelRepo(srcRepoName, srcBranchName, srcCommitId string) (*RepoAttrs, error) {
-  repo_name := getModelRepoName(srcRepoName, srcCommitId)
-  repo_attrs, _ := a.GetRepoAttrs(repo_name)
 
-  return repo_attrs, nil
+func getModelName(srcRepoName, srcCommitID string) string {
+  return "repo-" + srcRepoName + "-commit-" + srcCommitID + "-model"
 }
 
+func (a *apiServer) CreateModel(srcRepoName, srcBranchName, srcCommitId string) (*Repo, *Branch, *Commit, error) {
+  repo_name := getModelName(srcRepoName, srcCommitId)
+  branch_name:="master"
 
-func getModelRepoName(srcRepoName, srcCommitID string) string {
-  return "repo/" + srcRepoName + "/commit/" + srcCommitID + "/model"
+  repo_attrs, err:= a.InitTypedRepo(MODEL, repo_name)
+  if err != nil {
+    base.Log("[apiServer.CreateModel] Failed to create model repo: ", err)
+    return nil, nil, nil, err
+  }
+
+  branch := &Branch{ Name: branch_name }
+  commit_attrs, err:= a.InitCommit(repo_name, branch_name, "")
+
+  return repo_attrs.Repo, branch, commit_attrs.Commit, nil
 }
+
+func (a *apiServer) GetModel(srcRepoName, srcBranchName, srcCommitId string) (*Repo, *Branch, *Commit, error) {
+  repo_name := getModelName(srcRepoName, srcCommitId)
+  branch_name := "master"
+
+  repo_attrs, _ := a.q.GetRepoAttrs(repo_name)
+  branch_attrs, _ := a.q.GetBranchAttrs(repo_name, branch_name)
+
+  return repo_attrs.Repo, branch_attrs.Branch, branch_attrs.Head, nil
+}
+
  
-func (a *apiServer) GetOrCreateModelRepo(srcRepoName, srcBranchName, srcCommitId string) (*RepoAttrs, error) {
-  if !a.CheckRepoExists(getModelRepoName(srcRepoName, srcCommitId)) {
-    return a.CreateModelRepo(srcRepoName, srcBranchName, srcCommitId)
+func (a *apiServer) GetOrCreateModel(srcRepoName, srcBranchName, srcCommitId string) (*Repo, *Branch, *Commit, error) {
+  if !a.CheckRepoExists(getModelName(srcRepoName, srcCommitId)) {
+    return a.CreateModel(srcRepoName, srcBranchName, srcCommitId)
   } 
   
-  return a.GetModelRepo(srcRepoName, srcBranchName, srcCommitId)
+  return a.GetModel(srcRepoName, srcBranchName, srcCommitId)
 }
 
 // returns size of head commit in branch

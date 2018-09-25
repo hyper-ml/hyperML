@@ -19,7 +19,8 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   
   // api getters for meta 
   router.Handle("/repo", makeHandler(sc, privs, (*Handler).handlePostRepo)).Methods("POST")
-  router.Handle("/repo", makeHandler(sc, privs, (*Handler).handleGetRepo)).Methods("GET")
+  router.Handle("/repo/{repoId}", makeHandler(sc, privs, (*Handler).handleGetRepo)).Methods("GET")
+  router.Handle("/repo/{repoId}/explode", makeHandler(sc, privs, (*Handler).handleExplodeRepo)).Methods("GET")
 
   
   // commit activities
@@ -28,10 +29,17 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
 
   // repo attr getters
   router.Handle("/repo_attrs", makeHandler(sc, privs, (*Handler).handleGetRepoAttrs)).Methods("GET")
-  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/model_repo", makeHandler(sc, privs, (*Handler).handleGetOrCreateModelRepo)).Methods("GET")
-  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/size", makeHandler(sc, privs, (*Handler).handleGetCommitSize)).Methods("GET")
+  router.Handle("/repo_attrs/{repoId}/explode", makeHandler(sc, privs, (*Handler).handleExplodeRepoAttrs)).Methods("GET")
 
-  //other getters
+  // model getter/setter
+  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/model", makeHandler(sc, privs, (*Handler).handleGetModel)).Methods("GET")
+  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/model", makeHandler(sc, privs, (*Handler).handleGetOrCreateModel)).Methods("POST")
+
+  // commit attrs
+  router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/attrs", makeHandler(sc, privs, (*Handler).handleGetCommitAttrs)).Methods("GET")
+  router.Handle("/repo/{repoName}/branch/{branchName}/commit/{commitId}/attrs", makeHandler(sc, privs, (*Handler).handleGetCommitAttrs)).Methods("GET")
+
+  // other getters
   router.Handle("/branch_attr", makeHandler(sc, privs, (*Handler).handleGetBranchAttrs)).Methods("GET")
   router.Handle("/commit_attrs", makeHandler(sc, privs, (*Handler).handleGetCommitAttrs)).Methods("GET")
   router.Handle("/file_attrs", makeHandler(sc, privs, (*Handler).handleGetFileAttrs)).Methods("GET")
@@ -44,8 +52,9 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   router.Handle("/flow/{flowId}", makeHandler(sc, privs, (*Handler).handleGetFlowAttrs)).Methods("GET")
   router.Handle("/flow", makeHandler(sc, privs, (*Handler).handleLaunchFlow)).Methods("POST")
 
-  router.Handle("/flow/{flowId}/out_repo", makeHandler(sc, privs, (*Handler).handleGetOrCreateOutRepo)).Methods("GET")
-  
+  router.Handle("/flow/{flowId}/output", makeHandler(sc, privs, (*Handler).handleGetFlowOutput)).Methods("GET")
+  router.Handle("/flow/{flowId}/output", makeHandler(sc, privs, (*Handler).handleGetOrCreateFlowOutput)).Methods("POST")
+
 
   // log getters
   router.Handle("/tasks/{taskId}/log", makeHandler(sc, privs, (*Handler).handleGetTaskLog)).Methods("GET")

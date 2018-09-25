@@ -5,6 +5,17 @@ import(
   ws "hyperview.in/server/core/workspace"
 )
 
+type FlowMessage struct {
+  Flow  *Flow
+  Tasks  *[]tasks.Task
+  FlowStatusStr string
+  Task *tasks.Task
+  TaskStatusStr string
+
+  Repos []*ws.RepoMessage
+  CmdStr string
+}
+
 type TaskStatusChangeRequest struct {
   Flow Flow
   Task tasks.Task

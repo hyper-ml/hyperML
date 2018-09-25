@@ -3,12 +3,14 @@ package rest_client
 import ( 
   "fmt"
   "strconv"
+  "net/url"
   "encoding/json"
 
   "hyperview.in/server/base"
 )
 
 type Result struct {
+  url         *url.URL
   body        []byte
   contentType string
   err         error
@@ -16,7 +18,7 @@ type Result struct {
   reason      string
 }
 
-func NewResult(body []byte, contentType string, err error, statusCode int) Result {
+func NewResult(url *url.URL, body []byte, contentType string, err error, statusCode int) Result {
   var body_json map[string]interface{}
   var ret_error error
   var reason string 
@@ -70,7 +72,7 @@ func (r Result) Raw() ([]byte, error) {
   if r.reason != "" {
     return r.body, fmt.Errorf(r.err.Error() + r.reason)
   }
-  base.Debug("[Result.Raw] Result: ", r.reason, r.err)
+  base.Debug("[Result.Raw] Result: ", r.url, r.reason, r.err)
 
   return r.body, r.err
 }

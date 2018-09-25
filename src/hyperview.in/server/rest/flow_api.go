@@ -45,8 +45,7 @@ func (h *Handler) handleLaunchFlow() error {
 
   var response map[string]interface{}
   var raw_input []byte
-  var err error
-  var branch_name string
+  var err error 
   
   raw_input, err = ioutil.ReadAll(h.rq.Body)
   if err != nil {
@@ -54,56 +53,56 @@ func (h *Handler) handleLaunchFlow() error {
     return err
   }
 
-  flow_req := flow_pkg.NewFlowLaunchRequest{} 
+  flow_msg := flow_pkg.FlowMessage{} 
 
-  if err := json.Unmarshal(raw_input, &flow_req); err != nil {
+  if err := json.Unmarshal(raw_input, &flow_msg); err != nil {
     base.Log("[rest.flow.launchFlow] Invalid JSON for NewFlowLaunchRequest: ", err)
     return err
   }
+  repo_msg := flow_msg.Repos[0]
+  repo_name := repo_msg.Repo.Name
+  branch_name := repo_msg.Branch.Name
+  commit_id := repo_msg.Commit.Id
 
-  if flow_req.Repo.Name == "" || flow_req.CmdString == "" {
-    return base.HTTPErrorf(http.StatusInternalServerError, "Invalid method params")
+  if repo_name == "" || commit_id == "" || flow_msg.CmdStr == "" {
+    return base.HTTPErrorf(http.StatusBadRequest, "Invalid method params")
   } 
-  if flow_req.Branch.Name != "" {
-    branch_name = flow_req.Branch.Name
-  } else {
+
+  if branch_name != "" { 
     branch_name = "master"
   }
 
-  if flow_req.Commit.Id == "" {
-    commit_id, err := h.server.workspaceApi.StartCommit(
-      flow_req.Repo.Name, branch_name)
+  if commit_id == "" {
+    commit_id, err = h.server.workspaceApi.StartCommit(
+      repo_name, branch_name)
 
     if err != nil {
       base.Log("[Handler.handleLaunchFlow] Failed to start commit: ", err)
       //h.writeJSON(response)   
       return base.HTTPErrorf(http.StatusBadRequest, err.Error())
     }
-    flow_req.Commit  = ws.Commit { Id: commit_id }
   } 
 
-  flow_resp, err := h.server.flowServer.LaunchFlow(flow_req)
+  flow_attrs, err := h.server.flowServer.LaunchFlow(repo_name, branch_name, commit_id, flow_msg.CmdStr)
+ 
   if err != nil {
     base.Log("[Handler.handleLaunchFlow] Failed to launch task: ", err)
     return base.HTTPErrorf(http.StatusBadRequest, err.Error())
   }
 
-  base.Log("flow_resp in handler: ", flow_resp)
-  // wait for a second or when flow is ready ?
+  flow_msg.Flow = &flow_attrs.Flow
+  flow_msg.FlowStatusStr = flow_pkg.FlowStatusToString(flow_attrs.Status)
+  flow_msg.Repos[0].Commit = &ws.Commit {Id: commit_id}
   
-  // keep track if possible 
-  response =  structs.Map(flow_resp)
+  response =  structs.Map(flow_msg)
 
   h.writeJSON(response)
 
   return nil
 }
-
-
-
-
-
-func (h *Handler) handleGetOrCreateOutRepo() error {
+ 
+func (h *Handler) handleGetFlowOutput() error {
+  
   if (h.rq.Method != "GET") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
@@ -113,31 +112,91 @@ func (h *Handler) handleGetOrCreateOutRepo() error {
     return base.HTTPErrorf(http.StatusBadRequest, "Invalid flowId params %s", flow_id)   
   } 
 
-  // create or get output repo for the flow
-  repo_attrs, err := h.server.flowServer.GetOrCreateOutRepo(flow_pkg.Flow {Id: flow_id})
-  if err != nil {
-   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
-  }
-
-  //start a fresh commit in master branch 
-  commit_attrs, err:= h.server.workspaceApi.InitCommit(repo_attrs.Repo.Name, "master", "")
-
-  if err != nil {
-   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
-  }
-  var branch *ws.Branch
-  if repo_attrs.Branches["master"] != nil {
-    branch = repo_attrs.Branches["master"] 
-  }
-
-  out_response := &flow_pkg.FlowOutRepoResponse {
-    Repo: repo_attrs.Repo,
-    Branch: branch,
-    Commit: commit_attrs.Commit,
-  } 
+  f := flow_pkg.Flow { Id: flow_id }
+  repo, branch, commit, err := h.server.flowServer.GetOutput(f)
   
-  response := structs.Map(out_response)
+  if err != nil {
+   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
+  }
+
+  if repo == nil {
+    return base.HTTPErrorf(http.StatusBadRequest, "Request failed ")    
+  }
+  
+  out_repo := &ws.RepoMessage {
+    Repo: repo,
+    Branch: branch,
+    Commit: commit,
+  } 
+
+  response := structs.Map(out_repo)
+  h.writeJSON(response)
+  return nil
+}
+
+func (h *Handler) handleGetOrCreateFlowOutput() error {
+  if (h.rq.Method != "POST") {
+    return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
+  }
+
+  flow_id, _ := h.getMandatoryUrlParam("flowId")
+  if flow_id == "" {
+    return base.HTTPErrorf(http.StatusBadRequest, "Invalid flowId params %s", flow_id)   
+  } 
+
+  f := flow_pkg.FlowRef(flow_id)
+  repo, branch, commit, err := h.server.flowServer.GetOrCreateOutput(f)
+  
+  if err != nil {
+   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
+  }
+
+  if repo == nil {
+    return base.HTTPErrorf(http.StatusBadRequest, "Request failed ")    
+  }
+
+  out_repo := &ws.RepoMessage{
+    Repo: repo,
+    Branch: branch,
+    Commit: commit,
+  }
+
+  response := structs.Map(out_repo)
   h.writeJSON(response)
 
   return nil
-}  
+}
+
+
+func (h *Handler) handleGetOrCreateFlowModel() error {
+   if (h.rq.Method != "POST") {
+    return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
+  }
+
+  flow_id, _ := h.getMandatoryUrlParam("flowId")
+  if flow_id == "" {
+    return base.HTTPErrorf(http.StatusBadRequest, "Invalid flowId params %s", flow_id)   
+  } 
+
+  f := flow_pkg.FlowRef(flow_id)
+  repo, branch, commit, err := h.server.flowServer.GetOrCreateModel(f)
+  
+  if err != nil {
+   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
+  }
+
+  if repo == nil {
+    return base.HTTPErrorf(http.StatusBadRequest, "Request failed ")    
+  }
+
+  out_repo := &ws.RepoMessage{
+    Repo: repo,
+    Branch: branch,
+    Commit: commit,
+  }
+
+  response := structs.Map(out_repo)
+  h.writeJSON(response)
+
+  return nil
+}

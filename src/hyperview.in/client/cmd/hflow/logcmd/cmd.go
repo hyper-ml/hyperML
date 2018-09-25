@@ -30,8 +30,8 @@ func LogCommands() []*cobra.Command {
       //fmt.Println("directory: ", current_dir)  
       //fmt.Println("task Id: ", flow_id)
 
-      cl, _ := client.NewApiClient(current_dir)
-      log_bytes, err := cl.RequestLog(flow_id)
+      c, _ := client.New(current_dir)
+      log_bytes, err := c.RequestLog(flow_id)
       if err != nil {
         exitWithError(err.Error())
       }

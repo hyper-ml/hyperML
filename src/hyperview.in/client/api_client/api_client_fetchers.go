@@ -1,17 +1,19 @@
-package client
+package api_client
 
 import (
   "fmt"
   "encoding/json"
+  "hyperview.in/client/rest_client" 
   ws "hyperview.in/server/core/workspace"
 
 )
 
 
-func (c *ApiClient) fetchCommitMap(repoName, commitId string) (*ws.FileMap, error) {
+func (c *ApiClient) GetCommitMap(repoName, commitId string) (*ws.FileMap, error) {
   var file_map ws.FileMap
   
-  rq := c.CommitMap.Get()
+  client, _ := rest_client.New(c.serverAddr, c.config.CommitMapUriPath)
+  rq := client.Verb("GET")
   rq.Param("repoName", repoName)
   rq.Param("commitId", commitId)
   resp := rq.Do()
@@ -28,7 +30,11 @@ func (c *ApiClient) fetchCommitMap(repoName, commitId string) (*ws.FileMap, erro
 
 
 func (c *ApiClient) RequestLog(flowId string) ([]byte, error) {
-  log_req := c.flowIo.VerbSp("GET", "/" + flowId + "/log")
+  
+  client, _   := rest_client.New(c.serverAddr, c.config.FlowAttrsUriPath)
+  sub_path := "/" + flowId + "/log"
+  log_req  := client.VerbSp("GET", sub_path)
+
   log_resp := log_req.Do()
   log_bytes, err:= log_resp.Raw() 
   fmt.Println("[ApiClient.RequestLog] log_bytes:", string(log_bytes), err)  

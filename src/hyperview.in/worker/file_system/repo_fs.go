@@ -67,6 +67,7 @@ func NewRepoFs(basePath string, concurrency int, repoName string, branchName str
 
 }  
 
+
 func (fs *RepoFs) GetWorkingDir() string {
   return fs.basePath
 }
@@ -329,6 +330,37 @@ func (fs *RepoFs) PushObject(rel_path string) (int64, error) {
 
 }
 
+func (fs *RepoFs) CloseCommit() error {
+  repo_name := fs.repo.Name
+  branch_name := fs.branch.Name
+  commit_id := fs.commit.Id
+
+  if err := fs.workerClient.CloseCommit(repo_name, branch_name, commit_id);  err != nil {
+    return err
+  } 
+
+  return nil
+}
+
+func (fs *RepoFs) CheckCommit() error {
+  if fs.repo.Name == "" {
+    return errInvalidRepo()
+  }
+
+  commit_attrs, err := fs.workerClient.FetchCommitAttrs(
+                        fs.repo.Name, 
+                        fs.commit.Id)
+  if err != nil {
+    return err
+  }
+
+  if !commit_attrs.IsOpen() {
+    return errCommitStatus("Open")
+  }
+
+  return nil
+}
+
 func (fs *RepoFs) PushModelDir() (size int64, fnError error) {
   return fs.PushDir("")
 }
@@ -338,9 +370,12 @@ func (fs *RepoFs) PushOutputDir() (size int64, fnError error) {
   return fs.PushDir("")
 }
 
+// requires an open commit to work with
+// needs to close commit or discard commit based on outcome
+// TODO: infinite backoff for file xfer
 func (fs *RepoFs) PushDir(subpath string) (size int64, fnError error) {
   var upload_size uint64
-  var skip_base_path bool = true
+  //var skip_base_path bool = true
 
   repo_path := fs.basePath
   push_path := fs.basePath
@@ -349,6 +384,11 @@ func (fs *RepoFs) PushDir(subpath string) (size int64, fnError error) {
     push_path = filepath_pkg.Join(fs.basePath, subpath)
   }
   
+  if err := fs.CheckCommit(); err != nil {
+    base.Error("[RepoFs.PushDir] Commit Error : ", fs.commit.Id, err)
+    return 0, err
+  }
+
   var eg errgroup.Group
 
   if err:= filepath_pkg.Walk(push_path, func(current_path string, file_osinfo os.FileInfo, err error) error {
@@ -357,7 +397,7 @@ func (fs *RepoFs) PushDir(subpath string) (size int64, fnError error) {
         return nil
       }*/
 
-      base.Debug("[RepoFs.PushDir] Found File in outpath: ", current_path)
+      base.Debug("[RepoFs.PushDir] Found File in path: ", current_path)
       // ignore symlinks for this release 
 
       if err != nil {
@@ -403,10 +443,12 @@ func (fs *RepoFs) PushDir(subpath string) (size int64, fnError error) {
     base.Log("[RepoFs.PushDir] Failed to walk through out directory. ", err)
   }
   fnError = eg.Wait()
+
   size = int64(upload_size)
   return
 }
  
+
 
 func (fs *RepoFs) Reader(path string, offset uint64, size uint64) (io.ReadCloser, error) {
   return nil, nil

@@ -8,13 +8,10 @@ import (
   "path/filepath"
 )
 
-type Config struct {
-  UserID string
-  DefaultServerAddr string
-  SessionId string
+type UrlMap struct {
   RepoUriPath string
   RepoAttrsUriPath string
-  DataSetUriPath string
+  DatasetUriPath string
   BranchAttrsUriPath string
   CommitUriPath string
   CommitAttrsUriPath string
@@ -28,7 +25,14 @@ type Config struct {
   WorkerUriPath string
   // virtual file system to uri
   VfsUriPath string
+}
+
+type Config struct {
+  UserID string
+  DefaultServerAddr string
+  SessionId string 
   Concurrency int
+  UrlMap *UrlMap
 }
 
 var configDir = filepath.Join(os.Getenv("HOME"), ".hyperview")
@@ -54,22 +58,24 @@ func ReadFromFile() (*Config, error) {
 func Default() (*Config) {
   return &Config{
     DefaultServerAddr: "http://localhost:8888",
-    RepoUriPath: "repo",
-    RepoAttrsUriPath: "repo_attrs",
-    DataSetUriPath: "dataset",
-    BranchAttrsUriPath: "branch_attr",
-    CommitUriPath: "commit",
-    CommitAttrsUriPath: "commit_attrs",
-    CommitMapUriPath: "commit_map",
-    FileUriPath: "file",
-    FileAttrsUriPath: "file_attrs",
-    ObjectUriPath: "object",
-    VfsUriPath: "vfs",
-    WorkerUriPath: "worker",
-    FlowAttrsUriPath: "flow",
-    TaskAttrsUriPath: "tasks",
-    TaskStatusUriPath: "task_status",
     Concurrency: 10,
+    UrlMap: &UrlMap {
+      RepoUriPath: "repo",
+      RepoAttrsUriPath: "repo_attrs",
+      DatasetUriPath: "dataset",
+      BranchAttrsUriPath: "branch_attr",
+      CommitUriPath: "commit",
+      CommitAttrsUriPath: "commit_attrs",
+      CommitMapUriPath: "commit_map",
+      FileUriPath: "file",
+      FileAttrsUriPath: "file_attrs",
+      ObjectUriPath: "object",
+      VfsUriPath: "vfs",
+      WorkerUriPath: "worker",
+      FlowAttrsUriPath: "flow",
+      TaskAttrsUriPath: "tasks",
+      TaskStatusUriPath: "task_status",
+      }, 
   }
 }
 

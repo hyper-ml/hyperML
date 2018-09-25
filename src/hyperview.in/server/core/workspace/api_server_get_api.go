@@ -1,9 +1,16 @@
 package workspace
 
-import(
-  "fmt"
+import( 
   "hyperview.in/server/base"
 )
+
+
+func (a *apiServer) GetRepo(name string) (*Repo, error) {
+  if a.q.CheckRepoExists(name) {
+    return RepoRef(name), nil
+  }
+  return nil, errInvalidRepoName(name)
+}
 
 func (a *apiServer) GetRepoAttrs(repoName string) (*RepoAttrs, error) {
   repo_attrs, err := a.q.GetRepoAttrs(repoName)
@@ -31,10 +38,6 @@ func (a *apiServer) GetCommitAttrs(repoName string, commitId string) (*CommitAtt
   if err !=  nil {
     return nil, err
   }
-
-  if commit_attrs.Finished.IsZero() {
-    return nil, fmt.Errorf("This repo has open commit. Please finish commit before downloading files.")
-  } 
 
   return commit_attrs, nil
 }

@@ -10,11 +10,15 @@ import (
   
   //"hyperview.in/server/base"
 
-  client "hyperview.in/client"
+  "hyperview.in/client"
   "hyperview.in/client/config"
+  "hyperview.in/client/fs"
 
 )
- 
+
+func dirNameForRepo(repoName string) string {
+  return fs.DirNameForRepo(repoName)
+} 
 
 func exitWithError(format string, args ...interface{}) {
   if errString := strings.TrimSpace(fmt.Sprintf(format, args...)); errString != "" {
@@ -35,7 +39,8 @@ func RepoCommands() []*cobra.Command {
   var task_id string
   var repo_name string
   var branch_name string
-  var curr_commit_id string
+  var commit_id string
+  var commit_id string
 
   repo_cmd := &cobra.Command{
     Use: "repo",
@@ -68,8 +73,8 @@ func RepoCommands() []*cobra.Command {
         exitWithError("A Repo is already initialized in this directory:", r)
       }  
 
-      cl, _ := client.NewApiClient(current_dir)      
-      err := cl.InitRepo(repo_name)
+      c, _ := client.New(current_dir)      
+      err := c.InitRepo(repo_name)
 
       if err != nil {
         exitWithError(err.Error())
@@ -90,10 +95,42 @@ func RepoCommands() []*cobra.Command {
     //TODO: add command details
     Long: `Clones a new repo from remote URL.`, 
     Run: func(cmd *cobra.Command, args []string) {
-      fmt.Println("repo clone")
-      cmd.Usage()
+      current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+      fmt.Println("directory: ", current_dir)
+
+      if len(args) == 0 {
+        exitWithError("Please enter Repo name")
+        clone_cmd.Usage()
+      }
+
+      repo_name := args[0]
+      if repo_name == "" {
+        exitWithError("Repo name can not be null")
+      }
+
+      if branch_name == "" {
+        branch_name = "master"
+      }
+
+      repo_dir := dirNameForRepo(repo_name)
+      if repo_dir == "" {
+        exitWithError("Directory name can not be null")
+      }
+
+      repo_dir = filepath.Join(current_dir, repo_dir)
+      c, _ := client.New(repo_dir)
+      err := c.CloneRepo(repo_name, branch_name, commit_id)
+      if err != nil {
+        exitWithError(err.Error())
+      }
+
+      _ = config.WriteRepoParams(current_dir, "REPO_NAME", repo_name)
+      _ = config.WriteRepoParams(current_dir, "BRANCH_NAME", branch_name)
+      _ = config.WriteRepoParams(current_dir, "COMMIT_ID", commit_id)
     },
   }  
+  clone_cmd.PersistentFlags().StringVar(&commit_id, "commit", "c", "", "commit Id")
+  clone_cmd.PersistentFlags().StringVar(&branch_name, "branch", "b", "", "branch name")
 
   repo_cmd.AddCommand(clone_cmd)
 
@@ -110,14 +147,15 @@ func RepoCommands() []*cobra.Command {
 
       repo_name, _  = config.ReadRepoParams(current_dir, "REPO_NAME")
       branch_name, _  = config.ReadRepoParams(current_dir, "BRANCH_NAME")
-      curr_commit_id, _  = config.ReadRepoParams(current_dir, "COMMIT_ID")
+      commit_id, _  = config.ReadRepoParams(current_dir, "COMMIT_ID")
 
       if repo_name == "" {
         exitWithError("This command works only from the top repo directory. If you aleady in top directory then initialize a repo with - hflow init -n <<name>> ")
       }
   
-      c, _ := client.NewApiClient(current_dir)
-      commit, err := c.PushRepo(repo_name, branch_name, curr_commit_id)
+      c, _ := client.New(current_dir)
+      commit, err := c.PushRepo(repo_name, branch_name, commit_id)
+      
       if err != nil { 
         exitWithError(err.Error())
       }
@@ -130,32 +168,9 @@ func RepoCommands() []*cobra.Command {
   // push_cmd.PersistentFlags().StringVar(&commit_id, "commit", "", "commit Id")
 
 
-  pull_cmd := &cobra.Command{
-    Use: "pull",
-    Short: "Pull new or changed files to server repo",
-    //TODO: add command details
-    Long: `Pull new or changed files to server repo`, 
-    Run: func(cmd *cobra.Command, args []string) {
-      cmd.Usage()
-    },
-  }
-
-  pull_res_cmd := &cobra.Command{
-    Use: "results",
-    Short: "Pull Results from task run",
-    //TODO: add command details
-    Long: `Pull Results from task run`, 
-    Run: func(cmd *cobra.Command, args []string) {
-      fmt.Println("repo clone")
-      cmd.Usage()
-    },
-  }  
-
-  pull_res_cmd.PersistentFlags().StringVar(&task_id, "task", "", "Task Id")
-  pull_cmd.AddCommand(pull_res_cmd)
 
   var result []*cobra.Command
-  result = append(result, init_cmd, repo_cmd, push_cmd, pull_cmd)
+  result = append(result, init_cmd, repo_cmd, push_cmd)
 
   return result
 }

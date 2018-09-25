@@ -44,8 +44,8 @@ func (w *WorkerClient) UpdateTaskStatus(workerId string, taskId string, tsr *flw
 }
 
 
-func (wc *WorkerClient) GetFlowOutRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
-  req := wc.FlowAttrs.VerbSp("GET", flowId + "/" + "out_repo")
+func (wc *WorkerClient) GetOrCreateFlowOutRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  req := wc.FlowAttrs.VerbSp("POST", flowId + "/" + "output")
 
   resp := req.Do()
   body, err := resp.Raw()

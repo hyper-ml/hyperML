@@ -10,7 +10,7 @@ import (
   "io/ioutil"
   "bytes"
   "encoding/json"
-  flow "hyperview.in/server/core/flow"
+  flow_pkg "hyperview.in/server/core/flow"
   ws "hyperview.in/server/core/workspace"
   client "hyperview.in/server/test_utils/rest_client"
 )
@@ -154,8 +154,21 @@ func genSourceFile(repo_name string) (repoDir string, f *os.File, err error){
 }
 
 func genSource() ([]byte) {
-  return []byte("import os \nprint(\"hello\")\nf = open(\"/wh_data/saved_models/model.txt\",\"w+\") \nprint(\"1\") \nf.write(\"Hello World\") \nprint(\"2\") \nf.close() \nprint(\"3\") \nfor z in os.listdir(\"/wh_data/\"):\n  print(z)")
-  //return []byte("import os\nprint(\"hello\")\nos.makedirs(\"/home/workspace/pip\")\n")
+  return []byte("import os \n" + 
+    "print(\"Start:0\") \n" +
+    "f = open(\"/wh_data/saved_models/model.txt\",\"w+\") \n" + 
+    "print(\"1\") \n" + 
+    "f.write(\"Hello World\") \n" + 
+    "print(\"2\") \n" + 
+    "f.close() \n" + 
+    "f1 = open(\"/wh_data/out/out.txt\",\"w+\") \n" + 
+    "print(\"3\") \n" +
+    "f1.write(\"Hello out\") \n" + 
+    "print(\"4\") \n" + 
+    "f1.close() \n" +
+    "print(\"5\") \n" + 
+    "for z in os.listdir(\"/wh_data/\"): \n" +  
+    " print(z)\n" )
 }
 
 func pushCode(code []byte, fpath string, repoName string, branchName string, commitId string) (error) {
@@ -186,8 +199,8 @@ func pushCode(code []byte, fpath string, repoName string, branchName string, com
   return nil
 }
 
-func StartTask(repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, cmdStr string) (*flow.Flow, error) {
-  task_req := flow.NewFlowLaunchRequest {
+func StartTask(repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, cmdStr string) (*flow_pkg.Flow, error) {
+  task_req := flow_pkg.NewFlowLaunchRequest {
     Repo: *repo,
     Branch: *branch,
     Commit: *commit, 
@@ -203,7 +216,7 @@ func StartTask(repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, cmdStr strin
   resp := api_call.Do()
   api_resp, _ := resp.Raw()  
 
-  task_result :=  flow.NewFlowLaunchResponse{}
+  task_result :=  flow_pkg.NewFlowLaunchResponse{}
   _ = json.Unmarshal(api_resp, &task_result)
 
   fmt.Println("[RunTask] Flow Id: ", task_result.Flow.Id)
@@ -211,7 +224,7 @@ func StartTask(repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, cmdStr strin
   return task_result.Flow, nil
 }
 
-func getLogSize(flow *flow.Flow) (int, error) {
+func getLogSize(flow *flow_pkg.Flow) (int, error) {
   client := getRestClient("tasks")
   url_subpath := "/" + flow.Id + "/log"
 
@@ -226,36 +239,95 @@ func getLogSize(flow *flow.Flow) (int, error) {
   return log_len, nil
 }
 
-func getSavedModelSize(repo *ws.Repo, branch *ws.Branch, commit *ws.Commit) (int, error) {
+func getSavedModelSize(repo *ws.Repo, branch *ws.Branch, commit *ws.Commit) (int64, error) {
   var err error
 
   client := getRestClient("repo_attrs")
-  url_subpath:= "/" + repo.Name + "/branch/" + branch.Name + "/commit/" + commit.Id + "/model_repo" 
+  url_subpath:= "/" + repo.Name + 
+    "/branch/" + branch.Name + 
+    "/commit/" + commit.Id + "/model" 
 
   req := client.VerbSp("GET", url_subpath)
   resp := req.Do()
 
   json_body, err := resp.Raw()
-  model_repo := ws.RepoAttrs{}
-  err = json.Unmarshal(json_body, &model_repo)
+  model := ws.RepoMessage{}
+
+  err = json.Unmarshal(json_body, &model)
   if err != nil {
-    fmt.Println("[getSavedModelSize] Failed to unmarshal model request response ")
+    fmt.Println("[getSavedModelSize] Failed to unmarshal RepoMessage ")
     return 0, err
   }
 
-  if model_repo.Repo.Name != "" {
-    fmt.Println("Model Repo found: ", model_repo.Repo.Name)
-    url_subpath = "/" + repo.Name + "/branch/" + branch.Name + "/commit/" + commit.Id + "/size"
-    size_req := client.VerbSp("GET", url_subpath)
-    resp := req.Do()
-    json_body, err := resp.Raw()
-    size_resp := ws.CommitSizeResponse{}
-    if err := json.Unmarshal(json_body, &model_repo); err != nil {
+  if model.Repo.Name != "" {
+    fmt.Println("Model Repo found: ", model.Repo.Name)
+
+    url_subpath = "/" + model.Repo.Name + 
+      "/branch/" + model.Branch.Name + 
+      "/commit/" + model.Commit.Id + "/attrs"
+
+    attrs_req := client.VerbSp("GET", url_subpath) 
+    attrs_resp := attrs_req.Do()
+
+    json_body, err := attrs_resp.Raw()
+    if err != nil {
+      fmt.Println("[getSavedModelSize] Failed the attributes request on model: ", err)
+      return 0, err
+    }
+    model_attrs := ws.CommitAttrs{}
+    
+    if err := json.Unmarshal(json_body, &model_attrs); err != nil {
       fmt.Println("[getSavedModelSize] Failed to unmarshal size request response ")
       return 0, err
     }
-    return size_resp.Size, nil
+
+    return model_attrs.Size, nil
   }
+  return 0, nil 
+}
+
+func getOutputSize(f *flow_pkg.Flow) (int64, error) {
+  var err error
+
+  client := getRestClient("flow")
+  url_subpath:= "/" + f.Id + "/output" 
+
+  req := client.VerbSp("GET", url_subpath)
+  resp := req.Do()
+
+  json_body, err := resp.Raw()
+  output := ws.RepoMessage{}
+
+  err = json.Unmarshal(json_body, &output)
+  if err != nil {
+    fmt.Println("[getOutputSize] Failed to unmarshal repo attrs message: ", err)
+    return 0, err
+  }
+
+  if output.Repo.Name != "" {
+    fmt.Println("out Repo found: ", output.Repo.Name)
+    client := getRestClient("repo")
+    url_subpath = "/" + output.Repo.Name + 
+      "/branch/" + output.Branch.Name + 
+      "/commit/" + output.Commit.Id + "/attrs"
+
+    attr_req := client.VerbSp("GET", url_subpath) 
+    attrs_resp := attr_req.Do()
+    json_body, err := attrs_resp.Raw()
+    if err != nil {
+      fmt.Println("[getOutputSize] Failed to query attributes from server: ", err)
+      return 0, err
+    }
+    out_attrs := ws.CommitAttrs{}
+
+    if err := json.Unmarshal(json_body, &out_attrs); err != nil {
+      fmt.Println("[getOutputSize] Failed to unmarshal commit_attrs ")
+      return 0, err
+    }
+
+    return out_attrs.Size, nil
+  }
+
   return 0, nil 
 }
 
@@ -312,6 +384,7 @@ func Test_WorkerCycle(t *testing.T) {
   //wait for task to finish
   fmt.Println("Wait for task to finish (15s)...")
   time.Sleep(15 * time.Second)
+
   log_len, err := getLogSize(flw)
   if err != nil {
     t.Fatalf("log_error: %s", err)
@@ -322,15 +395,24 @@ func Test_WorkerCycle(t *testing.T) {
   }
 
   /* Check model file exists */ 
-  s, err := getSavedModelSize(repo, branch, commit)
+  m_size, err := getSavedModelSize(repo, branch, commit_attrs.Commit)
   if err != nil {
     t.Fatalf("[getSavedModelSize] %s", err.Error())
   }
-  if s == 0 {
+  if m_size == 0 {
     fmt.Println("Failed to retrieve model or found empty file")
     t.Fail()
   }
-  
+
+  /* Check out file exists */ 
+  o_size, err := getOutputSize(flw)
+  if err != nil {
+    t.Fatalf("[getOutputSize] %s", err.Error())
+  }
+  if o_size == 0 {
+    fmt.Println("Failed to retrieve output or found empty file")
+    t.Fail()
+  }  
 }
 
 

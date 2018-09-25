@@ -14,8 +14,8 @@ import (
 )
 
 type FlowEngine interface{
-  StartFlow(flowId, taskId string) (task_pkg.TaskStatus, error)
-  LaunchFlow(repoName string, branchName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error)
+  StartFlow(flowId, taskId string) (*FlowAttrs, error)
+  LaunchFlow(repoName string, branchName string, commitId string, cmdString string) (*FlowAttrs, error)
 }
 
 
@@ -75,7 +75,6 @@ func (fe *flowEngine) master(quit chan int) {
   for {
     select {
       case evtval, ok := <- event_chan:
-        base.Debug("[flowEngine.master] Received flow change status event: ", evtval)
         if !ok {
           return
         }
@@ -87,7 +86,7 @@ func (fe *flowEngine) master(quit chan int) {
           break
         } 
 
-        base.Debug("[flowEngine.master] Changed Flow Status and Id: ", flow_attrs.Status, flow_attrs.Flow.Id)
+        base.Debug("[flowEngine.master] Change event on  Flow/task Status. Id: ", flow_attrs.Flow.Id)
         
         
 
@@ -164,34 +163,30 @@ func (fe *flowEngine) master(quit chan int) {
 
 
  
-func (fe *flowEngine) StartFlow(flowId, taskId string) (task_pkg.TaskStatus, error) {
+func (fe *flowEngine) StartFlow(flowId, taskId string) (*FlowAttrs, error) {
   flow_attrs, err:= fe.qs.GetFlowAttr(flowId)
-  current_status := flow_attrs.Tasks[taskId].Status
 
   if err != nil {
-    return current_status, InvalidFlowIdError(flowId)
+    return nil, InvalidFlowIdError(flowId)
   }
+
   if !fe.wpool.WorkerExists(flowId, taskId) {
     err = fe.wpool.AssignWorker(taskId, flow_attrs)
     
-    if err != nil {
-      
-      // update status of task
+    if err != nil {      
       if err = fe.processFlowError(flowId, taskId, err.Error()); err != nil {
-        return current_status, nil
+        return flow_attrs, err
       }
-
-      return task_pkg.TASK_FAILED, nil
+      return flow_attrs, err
     }
 
-    return task_pkg.TASK_ASSIGNED, nil
+    return flow_attrs, nil
 
   } else {
     // TODO: check if worker is active if not then flush it and restart a new worker
-    return current_status, TaskWorkerExistsError(flowId, taskId)
-  }
-  // return worker ID
-  return current_status, nil
+    return nil, TaskWorkerExistsError(flowId, taskId)
+  } 
+  return flow_attrs, nil
 
 }
 
@@ -260,26 +255,33 @@ func (fe *flowEngine) createSimpleFlow(repoName string, branchName string, commi
 }
 
 
-func (fe *flowEngine) LaunchFlow(repoName string, branchName string, commitId string, cmdString string) (*Flow, task_pkg.TaskStatus, error) {
+func (fe *flowEngine) LaunchFlow(repoName string, branchName string, commitId string, cmdString string) (*FlowAttrs, error) {
   // 1. create a new flow - task
   // 2. start flow 
 
-  flow_attrs, _ := fe.createSimpleFlow(repoName, branchName, commitId, cmdString)
+  var err error 
+  flow_attrs, err := fe.createSimpleFlow(repoName, branchName, commitId, cmdString)
   
-  var task_id string
-  for _, task_attrs := range flow_attrs.Tasks {
-    task_id = task_attrs.Task.Id
-    break
+  if err != nil {
+    base.Error("[fe.LaunchFlow] Failed to create simple flow: ", err)
+    return nil, err
   }
 
-  status, err:= fe.StartFlow(flow_attrs.Flow.Id, task_id)
+  task_attrs:= flow_attrs.FirstTask()
+  
+  if task_attrs == nil {
+    return nil, fmt.Errorf("[LaunchFlow] No task to run")
+  }
+
+  flow_attrs, err = fe.StartFlow(flow_attrs.Flow.Id, task_attrs.Task.Id)
 
   if err != nil {
-    return nil, status, err
+    return nil, err
   }
 
-  return &flow_attrs.Flow, status, nil
+  return flow_attrs, nil
 }
+
 /*
 func (fe *flowEngine) updateWorkerTaskStatus(workerId string, flowId string, taskId string, newStatus  task_pkg.TaskStatus) (error) {
   

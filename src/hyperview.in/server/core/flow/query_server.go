@@ -81,8 +81,8 @@ func (qs *queryServer) UpdateFlow(flowId string, flowAttr *FlowAttrs) error {
 
 func validForDelete(status FlowStatus) bool{
   switch status  {
-    case CANCELLED,
-         CREATED:
+    case FLOW_CANCELLED,
+         FLOW_CREATED:
       return true
   }
   return false

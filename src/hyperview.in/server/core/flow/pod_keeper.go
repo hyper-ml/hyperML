@@ -541,11 +541,10 @@ func(pk *PodKeeper)  Watch(eventCh chan WorkerEvent) {
 
           if status.State.Terminated != nil {
             base.Debug("[PodKeeper.Watch] exit code: ", status.State.Terminated.ExitCode)
-            if status.State.Terminated.ExitCode == 0 {
+            
+            //if status.State.Terminated.ExitCode == 0 {
               base.Log("[PodKeeper.Watch] Contaner terminated with 0 code", status.State.Terminated)
-              // TODO:  delete deployment here 
-              // dont wait
-
+              
               base.Debug("[PodKeeper.Watch]  podId: " + pod.Name + " pod_status: unknown  container_status: Terminated")
               pk.SaveWorkerLog(wevt.Worker, wevt.Flow) 
               wevt.Type = WorkerEventType(WorkerSucceeded)
@@ -554,7 +553,8 @@ func(pk *PodKeeper)  Watch(eventCh chan WorkerEvent) {
               pk.deleteDeployment(deploy_id)
           
               continue
-              }
+            //}
+
             }
 
           if status.State.Running != nil { 

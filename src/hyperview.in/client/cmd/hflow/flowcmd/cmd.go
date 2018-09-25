@@ -31,8 +31,8 @@ func FlowCommands() []*cobra.Command {
       branch_name, _ := config.ReadRepoParams(current_dir, "BRANCH_NAME")
       commit_id, _ := config.ReadRepoParams(current_dir, "COMMIT_ID")
 
-      cl, _ := client.NewApiClient(current_dir)
-      flow_id, new_commit_id, task_resp, err := cl.RunTask(repo_name, branch_name, commit_id, task)
+      c, _ := client.New(current_dir)
+      flow_id, new_commit_id, task_resp, err := c.RunTask(repo_name, branch_name, commit_id, task)
       _ = config.WriteRepoParams(current_dir, "FLOW_ID", flow_id)
       _ = config.WriteRepoParams(current_dir, "COMMIT_ID", new_commit_id)
   

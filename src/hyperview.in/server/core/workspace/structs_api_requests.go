@@ -1,6 +1,31 @@
 package workspace 
 
+type RepoMessage struct {
+  Repo *Repo `json:"repo"`
+  Branch *Branch `json:"branch"` 
+  Commit *Commit `json:"commit"`
+  FileMap *FileMap `json:"file_map"`
+}
 
+type StandardRepoMessage struct {
+  RepoMessage
+  Output *RepoMessage `json:"output"`
+  Model *RepoMessage `json:"model"`
+}
+
+type RepoAttrsMessage struct {
+  RepoAttrs *RepoAttrs `json:"repo_attrs"`
+  BranchAttrs *BranchAttrs `json:"branch_attrs"` 
+  CommitAttrs *CommitAttrs `json:"commit_attrs"`
+  FileMap *FileMap `json:"file_map"`
+}
+ 
+type StdRepoAttrsMessage struct {
+  RepoAttrsMessage
+  OutputAttrs *RepoAttrsMessage `json:"output_attrs"`
+  ModelAttrs *RepoAttrsMessage `json:"model_attrs"`
+}
+ 
 
 type ModelRepoRequest struct {
 }
@@ -14,6 +39,7 @@ type ModelRepoResponse struct {
 type GetRepoRequest struct {
 
 }
+
 
 type GetRepoResponse struct {
   Repo Repo `json:"repo"`

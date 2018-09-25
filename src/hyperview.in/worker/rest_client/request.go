@@ -180,18 +180,18 @@ func (r *Request) Do() Result {
 func (r *Request) processJsonResponse(resp *http.Response, req *http.Request) Result {
   var body []byte
   var err error
-  
+  url :=  r.URL()
   if resp.Body != nil {
     body, err = ioutil.ReadAll(resp.Body)
     //base.Debug("[Request.processJsonResponse] Result: ", string(body), err)
 
     if err != nil {
       base.Log("[Request.processJsonResponse] HTTP request Failed: ", err)
-      return Result{err: err}
+      return Result{url: url, err: err}
     }
 
      //TODO: change content type based on response
-    return NewResult(body, "application/json" , err, resp.StatusCode)
+    return NewResult(url, body, "application/json" , err, resp.StatusCode)
   }
   return Result{}
 }

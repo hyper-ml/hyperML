@@ -126,37 +126,7 @@ func (h *Handler) handleGetObject() error {
 }
 
  
-
-// What:  Gets Repo, Master Branch and Commit Info
-//
-
-func (h *Handler) handleGetRepo() error {
-  var response map[string]interface{}
-  repoName := h.getQuery("repoName")
-  branchName := h.getQuery("branchName")
-  
-  //TODO: handle error
-  repo_attrs, branch_attr, commit_attrs, fmap, _ := h.server.workspaceApi.DownloadRepo(repoName, branchName)
-
-  // Repo Response:
-  //    Repo
-  //    Branch
-  //    CommitId <- Head
-  //    FileMap
-
-  if commit_attrs != nil {
-    response = map[string]interface{}{
-      "repo": repo_attrs.Repo, 
-      "branch": branch_attr.Branch,
-      "commit_id": commit_attrs.Commit.Id,
-      "file_map": fmap, 
-    }
-  }
-
-  h.writeJSON(response)
-
-  return nil
-} 
+ 
 
 func (h *Handler) handleGetRepoAttrs() error {
   var response map[string]interface{}
@@ -213,34 +183,7 @@ func (h *Handler) handleGetBranchAttrs() error {
 
   return nil
 } 
-
-func (h *Handler) handleGetCommitAttrs() error {
-  var response map[string]interface{}
-  repoName := h.getQuery("repoName")
-  commitId := h.getQuery("commitId")
-
-  if repoName == "" { 
-    return base.HTTPErrorf(http.StatusInternalServerError, "Invalid repo param - repoName")
-  }
-
-  if commitId == "" { 
-    return base.HTTPErrorf(http.StatusInternalServerError, "Invalid repo param - commitId")
-  }
-    
-  //TODO: handle error
-  commit_attrs, err := h.server.workspaceApi.GetCommitAttrs(repoName, commitId)
-  
-  if err == nil {
-    response = structs.Map(commit_attrs) 
-  } else {
-    return err
-  }
-
-  fmt.Println("response on handleGetRepoAttrs: ", response)
-  h.writeJSON(response)
-
-  return nil
-} 
+ 
 
 
 func (h *Handler) handleGetCommitMap() error {

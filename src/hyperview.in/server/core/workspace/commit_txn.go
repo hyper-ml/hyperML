@@ -21,7 +21,7 @@ const (
 type commitTxn struct {
   repoName string
   branchName string
-  commitInfo *CommitAttrs 
+  commitAttrs *CommitAttrs 
   db *db.DatabaseContext
   q *queryServer
 }
@@ -69,7 +69,7 @@ func NewCommitTxn(repoName string, branchName string, commitId string, db *db.Da
     }
     
     if c_attrs.IsOpen(){
-      txn.commitInfo = c_attrs
+      txn.commitAttrs = c_attrs
     }
     
   }
@@ -80,11 +80,11 @@ func NewCommitTxn(repoName string, branchName string, commitId string, db *db.Da
 
 
 func (ct *commitTxn) setCommitAttrs(c *CommitAttrs) {
- ct.commitInfo = c 
+ ct.commitAttrs = c 
 }
 
 func (ct *commitTxn) IsOpenCommit() bool {
-  if !ct.commitInfo.IsOpen() {
+  if !ct.commitAttrs.IsOpen() {
     base.Log("This repo has no open commit. Please initialize commit before adding files.")
     return false
   }
@@ -96,7 +96,7 @@ func (ct *commitTxn) setCommitAttrsByBranch() error {
   if err != nil {
     return err
   }
-  ct.commitInfo = commit_attrs
+  ct.commitAttrs = commit_attrs
   return nil
 }
 
@@ -116,8 +116,8 @@ func (ct *commitTxn) Init() (*CommitAttrs, error) {
   var branch_name string = ct.branchName
 
   // if commit info was already set in NewCommitTxn()
-  if ct.commitInfo != nil {
-    return ct.commitInfo, nil
+  if ct.commitAttrs != nil {
+    return ct.commitAttrs, nil
   }
 
   repo_attrs, err = ct.q.GetRepoAttrs(ct.repoName)
@@ -267,17 +267,54 @@ func (ct *commitTxn) scoopHead(branchInfo *BranchAttrs, commit *Commit) error {
   return err
 }
 
+func (ct *commitTxn) getSize() int64 {
+  var size int64 
+  repo_name := ct.repoName
+  branch_name := ct.branchName
+  var commit_id string
+  
+  if ct.commitAttrs != nil {
+    commit_id = ct.commitAttrs.Id()
+  }
+
+  if commit_id == "" || repo_name == "" {
+    base.Warn("[commitTxn.getCommitSize] Failed to get size of un-initialized commit txn.")
+    return size
+  }
+
+  file_map, _ := ct.q.GetFileMap(repo_name, commit_id)
+
+  if len(file_map.Entries) == 0 {
+    return size
+  }
+
+  for fname, _ := range file_map.Entries {
+    f_attrs, err := ct.q.GetFileAttrs(repo_name, commit_id, fname)
+    if err != nil {
+      base.Debug("[commitTxn.GetCommitSize] Failed to find size of file: ", repo_name, commit_id, fname)
+      continue
+    }
+    size = size + f_attrs.Size()
+  }
+
+  base.Info("[commitTxn.GetSize] Size of Repo: ", size, repo_name, branch_name, commit_id)
+  return size
+}
 
 func (ct *commitTxn) End() error {
   var err error 
-  if (ct.commitInfo ==nil) {
+  if (ct.commitAttrs == nil) {
     base.Log("finishCommit: Could not fetch any open commit for repo %s", ct.repoName)
     return fmt.Errorf("finishCommit: Could not fetch any open commit for repo %s", ct.repoName)
   }
 
-  if ct.commitInfo.IsOpen() {
-    ct.commitInfo.Finished = time.Now()
-    err = ct.q.UpdateCommitAttrs(ct.repoName, ct.commitInfo.Id(), ct.commitInfo)
+
+  if ct.commitAttrs.IsOpen() {
+    
+    ct.commitAttrs.Finished = time.Now()
+    ct.commitAttrs.Size = ct.getSize()
+
+    err = ct.q.UpdateCommitAttrs(ct.repoName, ct.commitAttrs.Id(), ct.commitAttrs)
     return err  
   } else {
     base.Log("finishCommit: No open commit for this repo", ct.repoName)
@@ -289,10 +326,10 @@ func (ct *commitTxn) End() error {
 func (ct *commitTxn) insertFileAttrs(filePath string, object string, size int64, cs string) (*FileAttrs, error) {
   var err error
 
-  file_attrs := NewFileAttrs(ct.commitInfo.Commit, filePath, object, size, cs)
+  file_attrs := NewFileAttrs(ct.commitAttrs.Commit, filePath, object, size, cs)
 
   //TODO: get file info in return
-  err = ct.q.UpsertFileAttrs(ct.repoName, ct.commitInfo.Id(), filePath, file_attrs) 
+  err = ct.q.UpsertFileAttrs(ct.repoName, ct.commitAttrs.Id(), filePath, file_attrs) 
   if err != nil {
     base.Log("Failed to update file map:", filePath, object, size)
     return nil, err 
@@ -310,8 +347,8 @@ func (ct *commitTxn) insertFileAttrs(filePath string, object string, size int64,
 
 func (ct *commitTxn) insertDirInfo(filePath string, size int64) (*FileAttrs, error) {
   var err error
-  dir_info := NewDirInfo(ct.commitInfo.Commit, filePath, size)
-  err = ct.q.UpsertFileAttrs(ct.repoName, ct.commitInfo.Id(), filePath, dir_info) 
+  dir_info := NewDirInfo(ct.commitAttrs.Commit, filePath, size)
+  err = ct.q.UpsertFileAttrs(ct.repoName, ct.commitAttrs.Id(), filePath, dir_info) 
 
   if err != nil {
     return nil, err 
@@ -327,18 +364,18 @@ func (ct *commitTxn) insertDirInfo(filePath string, size int64) (*FileAttrs, err
 }
 
 func (ct *commitTxn) updateFileMap(filePath string) error {
-  newfile := &File{Commit: ct.commitInfo.Commit, Path: filePath}
-  return ct.q.AddFileToMap(ct.repoName, ct.commitInfo.Id(), newfile)
+  newfile := &File{Commit: ct.commitAttrs.Commit, Path: filePath}
+  return ct.q.AddFileToMap(ct.repoName, ct.commitAttrs.Id(), newfile)
 }
 
 func (ct *commitTxn) AddFile(filePath string, objectName string, size int64, cs string) (*FileAttrs, error) {
 
-  if (ct.commitInfo == nil) {
+  if (ct.commitAttrs == nil) {
     base.Log("Please initiate commit transaction with start-commit first.", ct.repoName)
     return nil, fmt.Errorf("Please initiate commit transaction with start-commit first.")
   }
 
-  if !ct.commitInfo.Finished.IsZero() {
+  if !ct.commitAttrs.Finished.IsZero() {
     return nil, fmt.Errorf("This repo has no open commit. Please initialize commit before adding files.")
   }
 
@@ -352,7 +389,7 @@ func (ct *commitTxn) AddFile(filePath string, objectName string, size int64, cs 
 func (ct *commitTxn) AddDir(filePath string, size int64) (*FileAttrs, error) {
 
   // TODO: get the latest commit info to avoid concurrency issues
-  if !ct.commitInfo.Finished.IsZero() {
+  if !ct.commitAttrs.Finished.IsZero() {
     return nil, fmt.Errorf("This repo has no open commit. Please initialize commit before adding files.")
   }
   
@@ -370,7 +407,7 @@ func (ct *commitTxn) Delete() error {
   var err error
   var branch_attr *BranchAttrs
 
-  if ct.commitInfo == nil {
+  if ct.commitAttrs == nil {
     if err = ct.setCommitAttrsByBranch(); err != nil {
       return err
     }
@@ -380,20 +417,20 @@ func (ct *commitTxn) Delete() error {
     return fmt.Errorf("This repo has no open commit to flush")
   } 
 
-  if ct.commitInfo.Parent_commit != nil {
+  if ct.commitAttrs.Parent_commit != nil {
     branch_attr, err = ct.q.GetBranchAttrs(ct.repoName, ct.branchName)
     if err != nil {
       base.Log("Invalid repo or branch name:", ct.repoName, ct.branchName)
       return err
     }
-    if err:= ct.scoopHead(branch_attr, ct.commitInfo.Parent_commit); err!= nil {
-      base.Log("Unable to scoop branch head to parent:", ct.commitInfo.Parent_commit.Id)
+    if err:= ct.scoopHead(branch_attr, ct.commitAttrs.Parent_commit); err!= nil {
+      base.Log("Unable to scoop branch head to parent:", ct.commitAttrs.Parent_commit.Id)
       return err
     }
 
   }
 
-  return ct.q.DeleteCommitAttrs(ct.repoName, ct.commitInfo.Id())
+  return ct.q.DeleteCommitAttrs(ct.repoName, ct.commitAttrs.Id())
 }
 
 
@@ -475,11 +512,11 @@ func (ct *commitTxn) lsDir(list map[string]*File, prefix string) (map[string]*Fi
 // list directory path
 func (ct *commitTxn) ListDir(dirPath string) (map[string]*FileAttrs, error) {
   
-  if ct.commitInfo == nil {
+  if ct.commitAttrs == nil {
     return nil, fmt.Errorf("Missing Commit Info. Please start commit transaction with Id or start a new commit.")
   }
 
-  fm, err := ct.q.GetFileMap(ct.repoName, ct.commitInfo.Id())
+  fm, err := ct.q.GetFileMap(ct.repoName, ct.commitAttrs.Id())
   if err != nil {
     return nil, fmt.Errorf("Commit has not files or dirs to list")
   }
@@ -491,11 +528,11 @@ func (ct *commitTxn) ListDir(dirPath string) (map[string]*FileAttrs, error) {
 
 func (ct *commitTxn) LookupFile(fpath string) (*FileAttrs, error) {
 
-  if ct.commitInfo == nil {
+  if ct.commitAttrs == nil {
     return nil, fmt.Errorf("[commitTxn.LookupFile] Missing Commit Info. Please start commit transaction with Id or start a new commit.")
   }
 
-  fm, err := ct.q.GetFileMap(ct.repoName, ct.commitInfo.Id())
+  fm, err := ct.q.GetFileMap(ct.repoName, ct.commitAttrs.Id())
   if err != nil || fm == nil {
     return nil, fmt.Errorf("[commitTxn.LookupFile] Commit has not files or dirs to list")
   }
@@ -503,7 +540,7 @@ func (ct *commitTxn) LookupFile(fpath string) (*FileAttrs, error) {
   base.Debug("[commitTxn.LookupFile] fpath parameter - ", fpath)
 
   if fe := fm.Entries[fpath]; fe != nil {
-    base.Debug("[commitTxn.LookupFile] found file in entries - ", fpath, ct.commitInfo.Id())
+    base.Debug("[commitTxn.LookupFile] found file in entries - ", fpath, ct.commitAttrs.Id())
 
     file_attrs, err := ct.q.GetFileAttrs(ct.repoName, fe.Commit.Id, fe.Path)
     
@@ -525,12 +562,12 @@ func (ct *commitTxn) LookupFile(fpath string) (*FileAttrs, error) {
 
   for p, _ := range fm.Entries {   
     if g.Match(p) { 
-      dir_info := NewDirInfo(ct.commitInfo.Commit, fpath, 0)
+      dir_info := NewDirInfo(ct.commitAttrs.Commit, fpath, 0)
       return dir_info, nil
     }
   }
 
-  return nil, &base.ErrFileNotFound{CommitId: ct.commitInfo.Id(), RepoName: ct.repoName, Fpath: fpath}
+  return nil, &base.ErrFileNotFound{CommitId: ct.commitAttrs.Id(), RepoName: ct.repoName, Fpath: fpath}
 }
 
 

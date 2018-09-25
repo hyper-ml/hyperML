@@ -8,6 +8,43 @@ import(
   ws "hyperview.in/server/core/workspace"
   
 )
+func (h *Handler) handleGetCommitAttrs() error {
+  base.Info("[Handler.handleGetCommitAttrs]")
+  if (h.rq.Method != "GET") {
+    return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
+  }
+
+  var response map[string]interface{}
+  repo_name := h.getQuery("repoName") 
+  commit_id := h.getQuery("commitId")
+  
+  if repo_name == "" {
+    repo_name, _ = h.getMandatoryUrlParam("repoName")
+  }
+
+  if commit_id == "" {
+    commit_id, _ = h.getMandatoryUrlParam("commitId")
+  }
+
+  if repo_name == "" { 
+    return base.HTTPErrorf(http.StatusBadRequest, "missing param - repoName")
+  }
+
+  if commit_id == "" { 
+    return base.HTTPErrorf(http.StatusBadRequest, "missing param - commitId")
+  }
+
+  commit_attrs, err := h.server.workspaceApi.GetCommitAttrs(repo_name, commit_id)
+  
+  if err != nil {
+    base.Error("[Handler.handleGetCommitAttrs] Error: ", repo_name, commit_id, err)
+    return base.HTTPErrorf(http.StatusBadRequest, "Failed to retrieve commit attributes for repo, commit ID: %s %s %s", repo_name, commit_id, err.Error())
+  }
+
+  response = structs.Map(commit_attrs)
+  h.writeJSON(response) 
+  return nil
+}
 
 
 func (h *Handler) handleGetOrStartCommit() error {
@@ -25,8 +62,7 @@ func (h *Handler) handleGetOrStartCommit() error {
   commit_attrs, err := h.server.workspaceApi.InitCommit(repo_name, branch_name, commit_id)
   
   if err != nil {
-    response = structs.Map(commit_attrs)
-    return err
+    return base.HTTPErrorf(http.StatusBadRequest, "Failed to initialize a commit: " + err.Error())
   }
 
   base.Debug("[Handler.handlePostRepo] Repo created ", repo_name)

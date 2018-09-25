@@ -45,6 +45,8 @@ type WorkHorse struct {
   taskAttrs *tsk.TaskAttrs
 
   homeDir string 
+  outDir string
+  modelDir string
   workingDir string
   workerIp string
 
@@ -154,25 +156,28 @@ func (w *WorkHorse) createDirs() error {
     base.Error("[WorkHorse.createDirs] Failed to create workspace dir: ", err)
   }
 
-  model_dir := filepath.Join(w.workingDir, DefaultModelPath)
+  model_dir := filepath.Join(UserVolume, DefaultModelPath)
   if err := utils.MkDirAll(model_dir, DefaultModelPerm); err != nil {
     base.Error("[WorkHorse.createDirs] Failed to create model dir: ", err)
   }
 
-  out_dir := filepath.Join(w.workingDir, DefaultOutPath)
+  out_dir := filepath.Join(UserVolume, DefaultOutPath)
   if err := utils.MkDirAll(out_dir, DefaultOutPerm); err != nil {
     base.Error("[WorkHorse.createDirs] Failed to create out dir: ", err)
   }
 
-  files, err := ioutil.ReadDir(w.workingDir)
+  files, err := ioutil.ReadDir(UserVolume)
   if err != nil {
-    base.Error("[WorkHorse.createDirs] Error reading directory: ", w.workingDir, err)
+    base.Error("[WorkHorse.createDirs] Error reading directory: ", UserVolume, err)
   } else {
-    base.Info("Listing files from workspace directory: ", w.workingDir)
+    base.Info("Listing files from user directory: ", UserVolume)
     for _, f := range files {
       base.Info(f.Name())
     }
   } 
+
+  w.modelDir = model_dir
+  w.outDir = out_dir
 
   return nil
 }
@@ -458,13 +463,17 @@ func (w *WorkHorse) setModelRepo() error {
     return err 
   }
 
-  repo, branch, commit, err := w.wc.GetModelRepo(source_repo, source_branch, source_commit)
+  repo, branch, commit, err := w.wc.GetOrCreateModelRepo(source_repo, source_branch, source_commit)
   if err != nil {
     base.Warn("[WorkHorse.setModelRepo] Failed to get model repo for master repo/commit: ", source_repo, source_commit, err)
     return err
   }
 
-  model_path := filepath.Join(UserVolume, DefaultModelPath)
+  model_path := w.modelDir
+  if model_path == "" {
+    model_path = filepath.Join(UserVolume, DefaultModelPath)
+  }
+
   base.Log("Model Directory: ", model_path)
 
   files, err := ioutil.ReadDir(model_path)
@@ -486,26 +495,36 @@ func (w *WorkHorse) setModelRepo() error {
 func (w *WorkHorse) pushSavedModels() error {
 
   if err := w.setModelRepo(); err!= nil {
-    base.Warn("[WorkHorse.pushSavedModels] Could not set model repo: ", err)
+    base.Error("[WorkHorse.pushSavedModels] Could not set model repo: ", err)
     return err
   } 
 
   dir_size, err := w.modelFs.PushModelDir()
   if err != nil {
-    base.Log("[WorkHorse.pushSavedModels] Failed to commit output files to repo: ", err)
+    base.Error("[WorkHorse.pushSavedModels] Failed to commit output files to repo: ", err)
     return err
   }
   
+  if err := w.modelFs.CloseCommit(); err != nil {
+    base.Error("[WorkHorse.pushSavedModels] Failed to close model commit")
+    return err
+  }
   base.Log("[WorkHorse.pushSavedModels] saved_models updated (size in bytes): ", dir_size)
+  
   return nil
 }
 
 func (w *WorkHorse) setOutRepo() error {
-  repo, branch, commit, err := w.wc.GetFlowOutRepo(w.flowId)
+  repo, branch, commit, err := w.wc.GetOrCreateFlowOutRepo(w.flowId)
   if err != nil {
     return err
   }
-  out_path := w.workingDir + DefaultOutPath
+  
+  out_path := w.outDir
+  if out_path == "" {
+    out_path = filepath.Join(UserVolume, DefaultOutPath)
+  }
+
   out_repo := fsys.NewRepoFs(out_path, FileOpsConcurrency, repo.Name, branch.Name, commit.Id, w.wc)  
   w.outFs = out_repo
   return nil
@@ -524,6 +543,12 @@ func (w *WorkHorse) pushOutput() error {
   }
   
   base.Log("[WorkHorse.pushOutput] Uploaded out directory: ", out_size)
+  
+  if err := w.outFs.CloseCommit(); err != nil {
+    base.Error("[WorkHorse.pushOutput] Failed to close output commit")
+    return err
+  }
+
   return nil
 }
 

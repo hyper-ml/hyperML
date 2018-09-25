@@ -4,7 +4,8 @@ import (
   "time"
   "strings"
   "hyperview.in/server/core/utils"
-  
+    ws "hyperview.in/server/core/workspace"
+
 )
  
 const (
@@ -18,6 +19,9 @@ const (
 type MountConfig struct {
   //repo
   RepoName string
+
+  //repo_type
+  RepoType ws.RepoType
 
   //branch 
   BranchName string
@@ -43,7 +47,7 @@ func NewMountConfig(repoName string, branchName string, commitId string, targetP
   
   var mmap map[string]MountConfig
   mmap = make(map[string]MountConfig)
-  mmap[repoName] = MountConfig{Target: targetPath, MountType: m_type, RepoName: repoName, BranchName: branchName, CommitId: commitId} 
+  mmap[repoName] = MountConfig{RepoType: ws.STANDARD_REPO, Target: targetPath, MountType: m_type, RepoName: repoName, BranchName: branchName, CommitId: commitId} 
   return mmap
 }
 
@@ -202,6 +206,28 @@ func NewTaskAttrs(tc *TaskConfig) *TaskAttrs {
   }
 }
 
-func (taskAttrs *TaskAttrs) GetTaskConfig() (*TaskConfig) {
-  return taskAttrs.TaskConfig
+func (t *TaskAttrs) GetTaskConfig() (*TaskConfig) {
+  return t.TaskConfig
 }
+
+func (t *TaskAttrs) MasterRepo() (repoName, branchName, commitId string) {
+  if t.TaskConfig == nil {
+    return 
+  }
+
+  for _, mount_config := range t.TaskConfig.MountMap {
+    if mount_config.RepoType == ws.STANDARD_REPO {
+      repoName = mount_config.RepoName
+      branchName = mount_config.BranchName
+      commitId = mount_config.CommitId
+      return
+    }
+  }
+
+  return
+}
+
+
+
+
+

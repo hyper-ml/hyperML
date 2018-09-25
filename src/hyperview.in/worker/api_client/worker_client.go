@@ -71,6 +71,7 @@ type WorkerClient struct {
 
   BaseUrl *url.URL
   Config *config.Config
+
   //TODO: add stats 
 }
 
@@ -192,6 +193,27 @@ func (wc *WorkerClient) FetchCommitAttrs(repoName, commitId string) (*ws.CommitA
   return &commit_attrs, nil
 }
 
+func (wc *WorkerClient) CloseCommit(repoName, branchName, commitId string) (error) {
+  client, _ := rest_client.NewRESTClient(wc.BaseUrl, wc.Config.CommitUriPath, http.DefaultClient)
+  rq := client.Verb("POST")
+
+  rq.Param("repoName", repoName)
+  rq.Param("branchName", branchName)
+  rq.Param("commitId", commitId)
+
+  resp := rq.Do()
+  _, err := resp.Raw()
+
+  if err == nil {
+    return nil
+  } else {
+    base.Error("[WorkerClient.CloseCommit] HTTP request to close commit failed: ", repoName, commitId, err)
+    return err
+  }
+
+  return nil
+}
+
 func (wc *WorkerClient) FetchCommitMap(repoName, commitId string) (*ws.FileMap, error) {
   var file_map ws.FileMap
 
@@ -286,21 +308,21 @@ func (wc *WorkerClient) DetachWorker(flowId string, taskId string, workerId stri
   return nil
 }
 
-func (wc *WorkerClient) GetModelRepo(srcRepoName, srcBranch, srcCommitId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
-  path:= srcRepoName + "/branch/" + srcBranch + "/commit/"+ srcCommitId +"/model_repo"
-  req := wc.RepoAttrs.VerbSp("GET", path)
+func (wc *WorkerClient) GetOrCreateModelRepo(srcRepoName, srcBranch, srcCommitId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  path:= srcRepoName + "/branch/" + srcBranch + "/commit/"+ srcCommitId +"/model"
+  req := wc.RepoAttrs.VerbSp("POST", path)
 
-  base.Info("[WorkerClient.GetModelRepo] Model Repo creation url: ", req.URL())
+  base.Info("[WorkerClient.GetOrCreateModelRepo] Model Repo creation url: ", req.URL())
   resp := req.Do()
   body, err := resp.Raw()
   if err != nil {
     return nil, nil, nil, err
   }
 
-  model_response := &ws.ModelRepoResponse{}
+  model_response := &ws.RepoMessage{}
   err = json.Unmarshal(body, model_response)
   
-  base.Debug("[WorkerClient.GetModelRepo] Model Repo for Repo: ", model_response.Repo.Name)  
+  base.Debug("[WorkerClient.GetOrCreateModelRepo] Model Repo for Repo: ", model_response.Repo.Name)  
   return model_response.Repo, model_response.Branch, model_response.Commit, nil
 
 }

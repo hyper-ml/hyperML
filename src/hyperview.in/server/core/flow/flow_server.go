@@ -79,27 +79,15 @@ func (fs *FlowServer) RegisterWorker(flowId string, taskId string, ipaddr string
 func (fs *FlowServer) DetachTaskWorker(workerId, flowId, taskId string) error {
   return fs.qs.DetachTaskWorker(workerId, flowId, taskId)
 }
+ 
 
-func (fs *FlowServer) LaunchFlow(flr NewFlowLaunchRequest) (NewFlowLaunchResponse, error) {
-  var commit_id string = flr.Commit.Id
-
-  if  commit_id == "" {
-    // get or open commit 
-    
-  }
-
-  resp:= NewFlowLaunchResponse{}
-
-  flow, task_status, err := fs.fe.LaunchFlow(flr.Repo.Name, flr.Branch.Name, flr.Commit.Id, flr.CmdString)
+func (fs *FlowServer) LaunchFlow(repoName, branchName, commitId, cmdStr string) (*FlowAttrs, error) {
+  flow_attrs, err := fs.fe.LaunchFlow(repoName, branchName, commitId, cmdStr)
   if err != nil {
-    resp.TaskStatus = tasks_pkg.TASK_FAILED
-    return resp, err
+    return nil, err
   }
-
-  resp.TaskStatusStr = tasks_pkg.TaskStatusByKey(task_status)
-  resp.Flow = flow
   
-  return resp, nil
+  return flow_attrs, nil
 }
 
 func (fs *FlowServer) UpdateWorkerTaskStatus(worker Worker, tsr *TaskStatusChangeRequest) (*TaskStatusChangeResponse, error) {
@@ -186,32 +174,74 @@ func (fs *FlowServer) GetTaskLog(flowId string) ([]byte, int, error) {
   return fs.obj.GetObject(file_name, 0, 0)
 }
 
-func getOutRepoName(flow_id string) string {
-  return "flow/" + flow_id + "/out"
+func getOutRepoName(flowId string) string {
+  return "flow-" + string(flowId) + "-out"
 }
 
-func (fs *FlowServer) createOutRepo(flow Flow) (*ws.RepoAttrs, error) {
-  repo_name:= getOutRepoName(flow.Id) 
+func (fs *FlowServer) NewOutput(flow Flow) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  repo_name := getOutRepoName(flow.Id) 
+  branch_name := "master"
+
   repo_attrs, err:= fs.wsapi.InitRepo(repo_name)
   if err != nil {
-    base.Log("[FlowServer.createOutRepo] Failed to create output repo: ", err)
-    return nil, err
+    base.Log("[FlowServer.NewOutput] Failed to create output repo: ", err)
+    return nil, nil, nil, err
   }
+  branch := &ws.Branch{ Name: branch_name }
+  commit_attrs, err:= fs.wsapi.InitCommit(repo_name, branch_name, "")
 
-  return repo_attrs, nil
+  return repo_attrs.Repo, branch, commit_attrs.Commit, nil
 }
 
-func (fs *FlowServer) getOutRepo(flow Flow) (*ws.RepoAttrs) {
+func (fs *FlowServer) GetOutput(flow Flow) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
   repo_name := getOutRepoName(flow.Id)
-  repo_attrs, _ := fs.wsapi.GetRepoAttrs(repo_name)
+  branch_name := "master"
 
-  return repo_attrs
+  repo_attrs, _ := fs.wsapi.GetRepoAttrs(repo_name)
+  branch_attrs, _ := fs.wsapi.GetBranchAttrs(repo_name, branch_name)
+
+  return repo_attrs.Repo, branch_attrs.Branch, branch_attrs.Head, nil
 }
 
-func (fs *FlowServer) GetOrCreateOutRepo(flow Flow) (*ws.RepoAttrs, error) {
-  if !fs.wsapi.CheckRepoExists(getOutRepoName(flow.Id)) {
-    return fs.createOutRepo(flow)
+func (fs *FlowServer) GetOrCreateOutput(flow Flow) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  repo_name := getOutRepoName(flow.Id)
+
+  if !fs.wsapi.CheckRepoExists(repo_name) { 
+    return fs.NewOutput(flow)
   } 
   
-  return fs.getOutRepo(flow), nil
+  return fs.GetOutput(flow) 
 }
+
+
+func (fs *FlowServer) GetOrCreateModel(flow Flow)  (repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, fnErr error) {
+  
+  if flow_attrs, err := fs.GetFlowAttr(flow.Id); flow_attrs != nil {
+    master, m_branch, m_commit := flow_attrs.masterRepo()
+    repo, branch, commit, fnErr = fs.wsapi.GetOrCreateModel(master, m_branch, m_commit)
+    return
+  } else {
+    fnErr = err
+    return 
+  }
+
+  return 
+}
+
+func (fs *FlowServer) GetModel(flowId string) (repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, fnErr error) {
+
+  if flow_attrs, err := fs.GetFlowAttr(flowId); flow_attrs != nil {
+    master, m_branch, m_commit := flow_attrs.masterRepo()
+    repo, branch, commit, fnErr = fs.wsapi.GetModel(master, m_branch, m_commit)
+    return
+  } else {
+    fnErr = err
+    return 
+  }
+
+ 
+  return 
+}
+  
+
+

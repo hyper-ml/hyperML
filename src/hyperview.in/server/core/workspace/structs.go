@@ -5,6 +5,10 @@ import (
   "sync"
 )
 
+const (
+  DefaultBranch = "master"
+)
+
 //TODO: consider created, updated dates to all objects
 // if not here in at DB level
 
@@ -18,11 +22,18 @@ func NewRepo(name string) *Repo{
   }
 }
 
+func RepoRef(name string) *Repo {
+  return &Repo {
+    Name: name,
+  }
+}
+
 type RepoType int
 const (
   STANDARD_REPO RepoType = iota
   DATASET
   MODEL 
+  OUTPUT
 )
 
 // TODO: add created, updated etc
@@ -60,8 +71,6 @@ type BranchAttrs struct {
   Head *Commit  
 }
 
-
-
 type Commit struct {
   Repo *Repo 
   Id  string 
@@ -73,7 +82,7 @@ type CommitAttrs struct {
   Parent_commit *Commit
   Child_commits []*Commit
   Description string
-  Size_bytes uint64
+  Size int64
   Started time.Time
   Finished time.Time
 }

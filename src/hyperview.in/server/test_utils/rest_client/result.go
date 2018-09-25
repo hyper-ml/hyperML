@@ -70,8 +70,10 @@ func (r Result) Raw() ([]byte, error) {
   if r.reason != "" {
     return r.body, fmt.Errorf(r.err.Error() + r.reason)
   }
-  base.Debug("[Result.Raw] Result: ", r.reason, r.err)
-
+  if r.err != nil {
+    base.Debug("[Result.Raw] Result: ", r.reason, r.err)
+  }
+  
   return r.body, r.err
 }
 

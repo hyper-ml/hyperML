@@ -5,25 +5,50 @@ import (
   "sync"
   . "hyperview.in/server/core/tasks"
   "hyperview.in/server/base"
+ 
 )
+ 
 
 type FlowStatus int
 
 const (
-  CREATED FlowStatus = iota
-  WAITINGTOSTART
-  STARTING 
-  STARTED
-  WAITING
-  RUNNING
-  COMPLETING
-  CANCELLING  
-  STOPPING
-  FAILED
-  STOPPED
-  COMPLETED
-  CANCELLED
+  FLOW_CREATED FlowStatus = iota
+  FLOW_WAITINGTOSTART
+  FLOW_STARTING 
+  FLOW_STARTED
+  FLOW_WAITING
+  FLOW_RUNNING
+  FLOW_COMPLETING
+  FLOW_CANCELLING  
+  FLOW_STOPPING
+  FLOW_FAILED
+  FLOW_STOPPED
+  FLOW_COMPLETED
+  FLOW_CANCELLED
 )
+
+
+var FlowStatusKey = map[int]string {
+   0: "FLOW_CREATED",
+   1: "FLOW_WAITINGTOSTART",
+   2: "FLOW_STARTING",
+   3: "FLOW_STARTED",
+   4: "FLOW_WAITING",
+   5: "FLOW_RUNNING",
+   6: "FLOW_COMPLETING",
+   7: "FLOW_CANCELLING",
+   8: "FLOW_STOPPING",
+   9: "FLOW_FAILED",
+   10: "FLOW_STOPPED",
+   11: "FLOW_COMPLETED",
+   12: "FLOW_CANCELLED",
+}
+
+
+func FlowStatusToString(key FlowStatus) string {
+  int_val := int(key)
+  return FlowStatusKey[int_val]
+}
   
 type WorkerStatus int 
 
@@ -41,6 +66,10 @@ type FlowConfig struct {
 type Flow struct {
   Id string
   Version string
+}
+
+func FlowRef(id string) Flow {
+  return Flow {Id: id}
 }
 
 // TODO: Add version to flow at somepoint
@@ -79,15 +108,26 @@ func NewFlowAttrs(fc *FlowConfig) *FlowAttrs {
     Flow: Flow {
       Id: new_flow_id,
     },
-    Status: CREATED,
+    Status: FLOW_CREATED,
     Created: time.Now(),
     Tasks: make(map[string]TaskAttrs),
   }
+} 
+
+/* temporary function to retrieve master repo 
+ * Need a better way to track master repo 
+ */
+
+func (f *FlowAttrs) masterRepo() (repoName, branchName, commitId string) {
+  if task_attrs := f.FirstTask(); task_attrs != nil {
+    return task_attrs.MasterRepo()
+  }
+  return 
 }
 
 func (f *FlowAttrs) isComplete() bool {
 
-  if f.Status >= FAILED {
+  if f.Status >= FLOW_FAILED {
     return true
   }
 
@@ -142,7 +182,7 @@ func copyConfig(fc *FlowConfig) *FlowConfig {
 
 
 func (fi *FlowAttrs) IsCreated() bool {
-  if fi.Status == CREATED {
+  if fi.Status == FLOW_CREATED {
     return true
   }
   return false
@@ -150,7 +190,7 @@ func (fi *FlowAttrs) IsCreated() bool {
 
 
 func (fi *FlowAttrs) IsStarted() bool {
-  if fi.Status == STARTED {
+  if fi.Status == FLOW_STARTED {
     return true
   }
   return false
@@ -158,7 +198,7 @@ func (fi *FlowAttrs) IsStarted() bool {
 
 
 func (fi *FlowAttrs) IsFailed() bool {
-  if fi.Status == FAILED {
+  if fi.Status == FLOW_FAILED {
     return true
   }
   return false
@@ -166,7 +206,7 @@ func (fi *FlowAttrs) IsFailed() bool {
 
 
 func (fi *FlowAttrs) IsStarting() bool {
-  if fi.Status == STARTING {
+  if fi.Status == FLOW_STARTING {
     return true
   }
   return false
@@ -174,7 +214,7 @@ func (fi *FlowAttrs) IsStarting() bool {
 
 
 func (fi *FlowAttrs) IsCompleted() bool {
-  if fi.Status == COMPLETED {
+  if fi.Status == FLOW_COMPLETED {
     return true
   }
   return false

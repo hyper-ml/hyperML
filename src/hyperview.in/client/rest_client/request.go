@@ -12,6 +12,7 @@ import (
   "path"
   "context"
   "strconv"
+  "encoding/json"
   "hyperview.in/server/base"
 )
 
@@ -313,9 +314,34 @@ func (r *Request) DoRaw() ([]byte, error) {
   return result.body, result.err
 }
 
+func parseServerErr(body io.ReadCloser) error {
+  var err error
+  var json_msg map[string]interface{}
+  var raw_msg []byte
+
+  if body != nil {
+    raw_msg, err = ioutil.ReadAll(body)
+    
+    if err != nil || len(raw_msg) == 0 {
+      return fmt.Errorf("Unknown server error")
+    }
+    err = json.Unmarshal(raw_msg, &json_msg)
+    err_string, _ := json_msg["error"].(string)
+    
+    if err_string != "" {
+      return fmt.Errorf(err_string)
+    }
+  }
+
+  return fmt.Errorf("Unknown server error")
+}
+
 // read raw output from server
-func (r *Request) ReadResponse() (io.ReadCloser, error) {
+func (r *Request) ResponseReader() (string, io.ReadCloser, error) {
+  var content_type string 
+
   client := r.client
+  
   if client == nil {
     client = http.DefaultClient
   }
@@ -326,11 +352,18 @@ func (r *Request) ReadResponse() (io.ReadCloser, error) {
   req.Header = r.headers
 
   resp, err := client.Do(req)  
+  
+  if resp.StatusCode >= 300 {
+    if resp.Header!= nil && resp.Header.Get("Content-type") == "application/json" {
+      return content_type, nil, parseServerErr(resp.Body)
+    }
+    return content_type, nil, fmt.Errorf("Unknown server error: ", resp.StatusCode)
+  }  
 
   if err != nil {
-    return nil, err
+    return content_type, nil, err
   }
 
-  return resp.Body, nil
+  return content_type, resp.Body, nil
 } 
 

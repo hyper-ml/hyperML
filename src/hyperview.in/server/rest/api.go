@@ -4,6 +4,7 @@ import (
   "fmt"
   "time"
   "io"
+
   //"encoding/json"
   "strconv"
   "net/http"
@@ -83,7 +84,7 @@ func (h *Handler) handleGetObject() error {
   offset_str := h.getQuery("offset")
   size_str := h.getQuery("size")
 
-  base.Debug("[Handler.handleGetObject] Params: ", repo_name, commit_id, file_path, offset_str, size_str)
+  base.Info("[Handler.handleGetObject] Params: ", repo_name, commit_id, file_path, offset_str, size_str)
 
   var offset int64
   var size int64
@@ -101,12 +102,12 @@ func (h *Handler) handleGetObject() error {
   file_attrs, err := h.server.workspaceApi.GetFileAttrs(repo_name, commit_id, file_path)
 
   if err != nil {
-    fmt.Println("failed to retrieve file info", err)
-    return err
+    base.Error("[Handler.handleGetObject] Failed to retrieve file info: ", repo_name, commit_id, file_path, err)
+    return base.HTTPErrorf(http.StatusBadRequest, err.Error())
   }
   
   object_hash := file_attrs.Object.Path
-  base.Debug("handleGetObject(): object_hash")
+  base.Info("[Handler.handleGetObject] object_hash: ", object_hash)
   rs, err:= h.server.objectAPI.ReadSeeker(object_hash, offset, size)
 
   if err != nil {
@@ -119,7 +120,7 @@ func (h *Handler) handleGetObject() error {
   }
 
   h.setHeader("Content-Disposition", fmt.Sprintf("attachment; filename=\"%v\"", file_path))
-  
+  h.setHeader("Content-Type", "application/octet-stream")
   http.ServeContent(h.response, h.rq, file_path, time.Time{}, rs)
   
   return nil

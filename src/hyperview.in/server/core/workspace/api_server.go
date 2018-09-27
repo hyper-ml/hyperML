@@ -197,6 +197,11 @@ func (a *apiServer) EndCommit(repoName string, branchName string, commitId strin
   return ct.End()
 }
 
+func (a *apiServer) FlushOpenCommit(repoName, commitId string) error {
+  base.Log("[apiServer.DeleteCommit] TODO")
+  return nil
+}
+
 
 func (a *apiServer) CloseOpenCommit(repoName, branchName string) error {
   var branch_attr *BranchAttrs

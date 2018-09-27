@@ -31,7 +31,7 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   router.Handle("/repo_attrs", makeHandler(sc, privs, (*Handler).handleGetRepoAttrs)).Methods("GET")
   router.Handle("/repo_attrs/{repoId}/explode", makeHandler(sc, privs, (*Handler).handleExplodeRepoAttrs)).Methods("GET")
 
-  // model getter/setter
+  //  model by repo getter/setter
   router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/model", makeHandler(sc, privs, (*Handler).handleGetModel)).Methods("GET")
   router.Handle("/repo_attrs/{repoName}/branch/{branchName}/commit/{commitId}/model", makeHandler(sc, privs, (*Handler).handleGetOrCreateModel)).Methods("POST")
 
@@ -51,9 +51,14 @@ func createHandler(sc *ServerContext, privs HandlerPrivs) (*mux.Router) {
   // api for task and flows
   router.Handle("/flow/{flowId}", makeHandler(sc, privs, (*Handler).handleGetFlowAttrs)).Methods("GET")
   router.Handle("/flow", makeHandler(sc, privs, (*Handler).handleLaunchFlow)).Methods("POST")
+  
+  // flow output
+  router.Handle("/flow/{flowId}/output", makeHandler(sc, privs, (*Handler).handleGetOutputByFlow)).Methods("GET")
+  router.Handle("/flow/{flowId}/output", makeHandler(sc, privs, (*Handler).handleGetOrCreateOutputByFlow)).Methods("POST")
 
-  router.Handle("/flow/{flowId}/output", makeHandler(sc, privs, (*Handler).handleGetFlowOutput)).Methods("GET")
-  router.Handle("/flow/{flowId}/output", makeHandler(sc, privs, (*Handler).handleGetOrCreateFlowOutput)).Methods("POST")
+  // model by flow id
+  router.Handle("/flow/{flowId}/model", makeHandler(sc, privs, (*Handler).handleGetModelByFlow)).Methods("GET")
+  router.Handle("/flow/{flowId}/model", makeHandler(sc, privs, (*Handler).handleGetOrCreateModelByFlow)).Methods("POST")
 
 
   // log getters

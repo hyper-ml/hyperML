@@ -2,50 +2,64 @@ package client
 
 import (
   "net/url"
-  "io/ioutil"
-  "bytes"
+  "path/filepath"
   "hyperview.in/client/api_client"
   "hyperview.in/client/config"
   "hyperview.in/client/fs"
+  "hyperview.in/server/base"
   flow_pkg "hyperview.in/server/core/flow"
   ws "hyperview.in/server/core/workspace"
+)
+
+const (
+  OutDirName = "/out"
+  SavedModelsDirName ="/saved_models"
 )
 
 type Client interface{
   InitRepo(repoName string) error
   InitBranch(repoName string, branchName string, headCommit string) error
   InitDataRepo(dir string, repoName string) error
-  RunTask(repoName string, branchName string, commitId string, cmdStr string) (flow_id string, openCommitId string, task_status string, fnError error)
+  RunTask(repoName string, branchName string, commitId string, cmdStr string) (flow *flow_pkg.Flow, newCommit *ws.Commit, fnError error)   
   RequestLog(flowId string) ([]byte, error)
-  PullResults(flowId string) error
-  PullSavedModels(flowId string) error
+  PullResults(flowId string) (string, *ws.Repo, *ws.Branch, *ws.Commit, error)
+  PullSavedModels(flowId string) (string, *ws.Repo, *ws.Branch, *ws.Commit, error)
   
-  CloneRepo() error
-  PushRepo(repoName, branchName, commitId string) (*ws.Commit, error)
+  CloneRepo(rname string) (commitId string, fnError error)
+  CloneBranch(rname, bname string) (commitId string, fnError error)
+  CloneCommit(rname, bname, cid string) (commitId string, fnError error)
+
+  PushRepo(rname, bname, cid string) (*ws.Commit, error)
 }
 
 
-func New(repoPath string) Client {
+func New(repoPath string) (Client, error) {
 
   c, err := config.ReadFromFile()
-  server_string := c.DefaultServerAddr
+  server_string := c.DefaultServerAddr 
 
   if err != nil {
-    fmt.Println("Failed to read config file")
+    base.Warn("Failed to read config file")
     c = config.Default()
   } 
   
   server_addr, err := url.Parse(server_string) 
   if err != nil {
+    base.Error("[client.New] Failed to parse server URL: ", err)
     return nil, err
   }
-  api:= api_client.NewApiClient(addr, c.Urlmap)
 
+  api, err:= api_client.NewApiClient(server_addr, c.UrlMap)
+  if err != nil {
+    base.Error("[client.New] Failed to create api client: ", err)
+    return nil, err
+  }
   return &client {
     repoPath: repoPath,
     serverAddr: server_addr,
     config: c,
-  }
+    api: api,
+  }, nil
 }
 
 type client struct {
@@ -54,7 +68,7 @@ type client struct {
   repoPath string
 
   //File system interface for local read/writers in the repo directory
-  repoFS fs.RepoFs
+  repoFs *fs.RepoFs
 
   // rest API client
   api *api_client.ApiClient
@@ -64,9 +78,9 @@ type client struct {
 }
 
 func (c *client) AttachRepoFS(repoName string, branchName, commitId string) error {
-  rfs := NewRepoFs(c.repoPath, 0, repoName, branchName, commitId, c.api)
+  rfs := fs.NewRepoFs(c.repoPath, 0, repoName, branchName, commitId, c.api)
   c.repoFs = rfs
-  return
+  return nil
 }
 
 func (c *client) InitRepo(repoName string) error {
@@ -75,7 +89,7 @@ func (c *client) InitRepo(repoName string) error {
 
 func (c *client) InitBranch(repoName string, branchName string, headId string) error {
   // TODO 
-  return 
+  return nil
 }
 
 func (c *client) InitDataRepo(dir string, repoName string) error {
@@ -83,101 +97,117 @@ func (c *client) InitDataRepo(dir string, repoName string) error {
 }
 
 
-func (c *client) RunTask(repoName string, branchName string, commitId string, cmdStr string) (flow_id string, openCommitId string, task_status string, fnError error) {
-  return c.api.RunTask(repoName, branchName, commitId, cmdStr)
-}
-
 func (c *client) RequestLog(flowId string) ([]byte, error) {
   return c.api.RequestLog(flowId)
 }
 
 
-func (c *client) PullResults(flowId string) error {
+// returns output repo details for local param storage 
+//
+func (c *client) PullResults(flowId string) (string, *ws.Repo, *ws.Branch, *ws.Commit, error) {
+  
   // to do :
-  fmt.Println("[client.PullResults] TODO")
+  base.Info("[client.PullResults] TODO")
+  parent_dir := filepath.Join(c.repoPath, OutDirName)
+  out_dir :=  filepath.Join(parent_dir, flowId)
+
+  base.Info("[client.PullResults] out_dir: ", out_dir)
+
+  // get out repo for the flow 
+  out_repo, out_branch, out_commit, err := c.api.GetOutputRepo(flowId)
+  
+  if err != nil {
+    base.Error("[client.PullResults] Failed to retrieve out repo for given task: ", err)
+    return "", nil, nil, nil, err
+  }
+  base.Debug("[client.PullResults] Out Repo, Branch and Commit: ", out_repo, out_branch, out_commit)
+  // clone out in results folder repo 
+  // hope all pans out 
+
+  out_fs := fs.NewRepoFs(out_dir, 0, out_repo.Name, out_branch.Name, out_commit.Id, c.api)
+  commit, err := out_fs.Clone()
+  if err != nil {
+    return "", nil, nil, nil, err
+  }
+
+  return out_dir, out_repo, out_branch, commit, nil
+}
+
+func (c *client) PullSavedModels(flowId string) (string, *ws.Repo, *ws.Branch, *ws.Commit, error) {
+  // to do :
+  base.Info("[client.PullSavedModels] TODO")
+  parent_dir := filepath.Join(c.repoPath, SavedModelsDirName)
+  model_dir :=  filepath.Join(parent_dir, flowId)
+
+  base.Info("[client.PullSavedModels] out_dir: ", model_dir)
+
+  // get out repo for the flow 
+  model_repo, model_branch, model_commit, err := c.api.GetModelByFlowId(flowId)
+  
+  if err != nil {
+    base.Error("[client.PullSavedModels] Failed to retrieve out repo for given task: ", err)
+    return "", nil, nil, nil, err
+  }
+
+  base.Debug("[client.PullSavedModels] model Repo, Branch and Commit: ", model_repo, model_branch, model_commit)
+  // clone out in results folder repo 
+  // hope all pans out 
+
+  model_fs := fs.NewRepoFs(model_dir, 0, model_repo.Name, model_branch.Name, model_commit.Id, c.api)
+  commit, err := model_fs.Clone()
+  if err != nil {
+    return "", nil, nil, nil, err
+  }
+
+  return model_dir, model_repo, model_branch, commit, nil
+}
+
+func (c *client) CloneRepo(rname string) (commitId string, fnError error) {
+  return c.CloneBranch(rname, "master")
+}
+
+func (c *client) CloneBranch(rname, bname string) (commitId string, fnError error) {
+  return c.CloneCommit(rname, bname, "")
+}
+
+// todo: clone should retrieve commit id 
+// and update local params  
+func (c *client) CloneCommit(rname, bname, cid string) (commitId string, fnError error) {
+  var commit *ws.Commit
+
+  if fnError = c.AttachRepoFS(rname, bname, cid); fnError != nil {
+    return 
+  }
+
+  if commit, fnError = c.repoFs.Clone(); fnError != nil {
+    return 
+  } 
+
+  if commit != nil {
+    return commit.Id, nil
+  }
   return 
 }
 
-func (c *client) PullSavedModels(flowId string) error {
-  // to do :
-  fmt.Println("[client.PullSavedModels] TODO")
-  return 
-}
-  
-func (c *ApiClient) CloneRepo(rname, bname, cid string) error {
-  
+func (c *client) PushRepo(rname, bname, cid string) (*ws.Commit, error) {
   if err := c.AttachRepoFS(rname, bname, cid); err != nil {
-    return err
+    return nil, err
   }
-
-  if err := c.repoFs.Clone(); err != nil {
-    return err
-  }
-  return nil
-}
-
-func (c *client) PushRepo(repoName, branchName, commitId string) (*ws.Commit, error) {
-  if err := c.AttachRepoFS(rname, bname, cid); err != nil {
-    return err
-  }
-  return c.api.PushRepo()
+  return c.repoFs.PushRepo()
 }
 
 
 
 // push code updates and then call run 
-func (c *ApiClient) RunTask(repoName string, branchName string, commitId string, cmdStr string) (flowId string, finalCommitId string, flowStatus string, fnError error) {
-  var err error 
-  var commit *ws.Commit 
+func (c *client) RunTask(repoName string, branchName string, commitId string, cmdStr string) (flow *flow_pkg.Flow, newCommit *ws.Commit, fnError error) {
   
-  commit, err = c.PushRepo(repoName, branchName, commitId) 
-  
-  if err != nil {
-    base.Log("[ApiClient.RunTask] Failed to push code updates to server: ", err)
-    return "", "", "", err
+  if _, err := c.PushRepo(repoName, branchName, commitId);  err != nil {
+    base.Log("[client.RunTask] Failed to push code updates to server: ", err)
+    fnError = err
+    return  
   }
 
-  flow_msg := flow_pkg.FlowMessage {
-    CmdStr: cmdStr,
-    Repos: []{
-      *RepoMessage{
-        Repo: {
-          Name: repoName,
-        },
-        Branch: {
-          Name: branchName,
-        },
-        Commit: {
-          Id: commitId,
-        },
-      },
-    },
-  }
-
-
-  client, _ := rest_client.New(c.serverAddr, c.config.FlowUriPath)
-  req := client.Verb("POST") 
-
-  json_msg, _ := json.Marshal(&flow_msg) 
-  _ = api_req.SetBodyReader(ioutil.NopCloser(bytes.NewReader(json_msg)))
-
-  resp := req.Do()
-  json_response, err := resp.Raw()  
-
-  flow_resp :=  flow_pkg.FlowMessage{}
-  err = json.Unmarshal(json_response, &flow_resp)
-  
-  base.Log("[RunTask] Flow Id: ", flow_resp.Flow.Id)
-  if flow_resp.Flow != nil {
-    flowId = flow_resp.Flow.Id
-  }
-  
-  if flow_resp.Commit != nil {
-    finalCommitId = flow_resp.Commit.Id
-  }
-  
-  flowStatus = flow_resp.FlowStatusStr
-  return
+  return c.api.RunTask(repoName, branchName, commitId, cmdStr)
 }
 
 

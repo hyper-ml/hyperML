@@ -39,7 +39,7 @@ type RepoFs struct {
   api *api_client.ApiClient
 }
 
-func NewRepoFs(basePath string, parallel int, repoName string, branchName string, commitId string, c *client.ApiClient) *RepoFs {
+func NewRepoFs(basePath string, parallel int, repoName string, branchName string, commitId string, c *api_client.ApiClient) *RepoFs {
   
   var limit int = DefaultFileOpLimit
 
@@ -63,7 +63,31 @@ func NewRepoFs(basePath string, parallel int, repoName string, branchName string
   }
 
 }  
- 
+
+func (fs *RepoFs) RepoName() (repoName string) {
+  if fs.repo != nil {
+    return fs.repo.Name
+  }
+  return 
+}
+
+func (fs *RepoFs) BranchName() (branchName string) {
+  if fs.branch != nil {
+    return fs.branch.Name
+  }
+  return 
+}
+
+func (fs *RepoFs) CommitId() (commitId string) {
+  if fs.commit != nil {
+    return fs.commit.Id
+  }
+  return 
+}
+
+func (fs *RepoFs) GetRepoParams() (repoName, branchName, commitId string) {
+  return fs.RepoName(), fs.BranchName(), fs.CommitId()
+}
 
 func (fs *RepoFs) CreateRepoDir() error {
 
@@ -91,6 +115,7 @@ func (fs *RepoFs) SwitchBranch(name string) error {
 } 
 
 func (fs *RepoFs) syncFileMap() error {
+
   f_map, err := fs.api.GetCommitMap(fs.repo.Name, fs.commit.Id)
   if err != nil {
     base.Log("[RepoFs.syncFileMap] Failed to sync file map for this repo: ", fs.repo.Name, fs.commit.Id)
@@ -100,7 +125,19 @@ func (fs *RepoFs) syncFileMap() error {
   return nil
 }
 
-func (fs *RepoFs) Clone() error {
+func (fs *RepoFs) SetCommit() error {
+  repo_name, branch_name, commit_id := fs.GetRepoParams()
+  
+  commit, err := fs.api.GetOrCreateCommit(repo_name, branch_name, commit_id)
+  if err != nil {
+    return err
+  }
+
+  fs.commit = commit
+  return nil
+}
+
+func (fs *RepoFs) Clone() (*ws.Commit, error) {
 
   op_limiter := NewOpLimiter(fs.concurrency)
   var repo_size int64
@@ -108,48 +145,60 @@ func (fs *RepoFs) Clone() error {
 
   if err := fs.CreateRepoDir(); err != nil {
     base.Error("[RepoFs.Clone] Failed to create repo directory. ", err)
-    return err
+    return nil, err
   }
+  if err := fs.SetCommit(); err != nil {
+    base.Error("[RepoFs.Clone] Failed to create or get commit ", err)
+    return nil, err
+  } 
 
   if fs.fileMap == nil {
     if err:= fs.syncFileMap(); err != nil {
-      return err
+      return nil, err
     }
   }
 
   if len(fs.fileMap.Entries) == 0 {
     base.Debug("[RepoFs.Clone] No files in map")
-    return nil
+    return nil, nil
   }
 
-  for file_path, _ := range fs.fileMap.Entries { 
+  for file_path, f_entry := range fs.fileMap.Entries { 
     base.Info("Downloading File:", file_path)
     op_limiter.Ask()
     
     eg.Go(func() (retError error){
         defer op_limiter.Release() 
-        
-        downl_bytes, err := fs.PullObject(file_path)
+        obj_repo_name := fs.RepoName()
+        obj_commit_id := f_entry.Commit.Id
+        downl_bytes, err := fs.PullObject(obj_repo_name, obj_commit_id, file_path)
+
+        if err != nil {
+          base.Error("[RepoFs.Clone] Failed to pull object: ", file_path, err)
+        }
+
         atomic.AddInt64(&repo_size, downl_bytes) 
         return err
     })
 
   }
-  base.Log("[RepoFs.mountRepo] Cloned Repo size: ", repo_size)
+  err := eg.Wait()
   
-  fnerror = eg.Wait()
-  repoSize = repo_size
+  if err != nil {
+    base.Error("[RepoFs.Clone] Failures while cloning the Repo: ", err)
+    return fs.commit, err
+  }
 
-  return
+  base.Log("[RepoFs.Clone] Cloned Repo size: ", repo_size)
+   
+  return fs.commit, err 
 }
 
 
 func (fs *RepoFs) pushCode(fullFilePath string) (int64, error) {
   
   var upld_size int64
-  repo_name := fs.repo.Name
-  branch_name:= fs.branch.Name
-  commit_id := fs.commit.Id
+  repo_name, branch_name, commit_id := fs.GetRepoParams()
 
   base.Debug("[RepoFs.PushObject] Pushing File: ", fullFilePath)
   repo_path:= fs.GetWorkingDir()
@@ -187,16 +236,13 @@ func (fs *RepoFs) pushCode(fullFilePath string) (int64, error) {
 
 func (fs *RepoFs) pushCodeUpdates() error {
   var upload_size uint64
-  var file_len int64
   var eg errgroup.Group
 
-  repo_name := fs.repo.Name
-  branch_name := fs.branch.Name
-  commit_id := fs.commit.Id
+  repo_name, _, commit_id := fs.GetRepoParams()
 
   repo_path := fs.GetWorkingDir()
 
-  commit_map, err := fs.api.fetchCommitMap(repo_name, commit_id) 
+  commit_map, err := fs.api.GetCommitMap(repo_name, commit_id) 
   if err != nil {
     base.Log("[RepoFs.pushCodeUpdates] Error :", err)
     return err
@@ -259,45 +305,45 @@ func (fs *RepoFs) pushCodeUpdates() error {
 }
 
 func (fs *RepoFs) PushRepo() (commit *ws.Commit, fnError error) {
-  repo_name := fs.repo.Name
-  branch_name := fs.branch.Name
-  commit_id := fs.commit.Id
 
-  commit, err = fs.api.GetOrCreateCommit(repo_name, branch_name, commit_id)
-  if err != nil {
-    return commit, err
-  }
-  fs.commit = commit 
-
-  err =  fs.pushCodeUpdates()
-  if err != nil {
-    return commit, err
+  if err := fs.SetCommit(); err != nil {
+    return nil, err
   }
 
-  return commit, nil
+  fnError =  fs.pushCodeUpdates()
+  if fnError != nil {
+    return
+  }
+
+  return
 }
 
-func (fs *RepoFs) PullObject(filePath string) (int64, error) {
+func (fs *RepoFs) PullObject(repoName, commitId, filePath string) (int64, error) {
 
   var bytes_wrtn int64
-  if fs.repoName == "" || fs.commitId == "" || filePath == "" {
-    return 0, fmt.Errorf("[RepoFs.PullObject] Either one or more parameters are missing: repoName, commitId, filePath")
+  repo_name := repoName
+  commit_id := commitId
+  file_path := filePath
+
+  if repo_name == "" || commit_id == "" || file_path == "" {
+    return 0, missingParamsError("repoName, commitId, filePath")
   }
 
-  downloader, err := fs.api.GetFileObject(fs.repoName, fs.branchName, fs.commitId, filePath)
+  _, dl_stream, err := fs.api.GetFileObject(repo_name, "", commit_id, file_path)
+  
   if err != nil {
-    base.Log("[RepoFs.PullObject] Failed to retrieve file data: ", fs.repo.Name, fs.commit.Id, filePath)
+    base.Log("[RepoFs.PullObject] Failed to retrieve file data: ", repo_name, commit_id, file_path)
     return 0, err  
   }
 
-  defer downloader.Close()
+  defer dl_stream.Close()
 
   buf := utils.GetBuffer()
   defer utils.PutBuffer(buf)
 
   for {
     // bytes read 
-    br, err := downloader.Read(buf)
+    br, err := dl_stream.Read(buf)
     if br == 0 && err != nil {
       if err == io.EOF {
         return bytes_wrtn, nil
@@ -306,7 +352,7 @@ func (fs *RepoFs) PullObject(filePath string) (int64, error) {
     }
 
     // bytes written in this lap
-    bw, err := fs.MakeFile(filePath, func(w io.Writer) error {
+    bw, err := fs.MakeFile(file_path, func(w io.Writer) error {
       _, err:= w.Write(buf[:br])
       return err})
     
@@ -317,6 +363,6 @@ func (fs *RepoFs) PullObject(filePath string) (int64, error) {
     }
   }
 
-  base.Debug("[RepoFs.PullObject] File Name: ", filePath, " bytes written: ", bytes_wrtn)
+  base.Debug("[RepoFs.PullObject] File Name: ", file_path, " bytes written: ", bytes_wrtn)
   return bytes_wrtn, nil
 }

@@ -3,6 +3,8 @@ package fs
 import(
   "io"
   "os"
+  filepath_pkg "path/filepath"
+  "hyperview.in/server/base"
 )
 
 func (fs *RepoFs) MakeFile(fpath string, f func(io.Writer) error) (int64, error) {
@@ -21,7 +23,7 @@ func (fs *RepoFs) MakeFile(fpath string, f func(io.Writer) error) (int64, error)
 
   defer func() {
     if err = file.Close(); err != nil{
-      fmt.Println("Error closing file", err)
+      base.Warn("Error closing file", err)
       return
     }
   }()

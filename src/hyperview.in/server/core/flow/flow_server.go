@@ -194,7 +194,10 @@ func (fs *FlowServer) NewOutput(flow Flow) (*ws.Repo, *ws.Branch, *ws.Commit, er
 }
 
 func (fs *FlowServer) GetOutput(flow Flow) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  
+  base.Info("[FlowServer.GetOutput] GetOutput: ", flow)
   repo_name := getOutRepoName(flow.Id)
+  base.Debug("[FlowServer.GetOutput] Out Repo : ", repo_name)
   branch_name := "master"
 
   repo_attrs, _ := fs.wsapi.GetRepoAttrs(repo_name)
@@ -228,9 +231,14 @@ func (fs *FlowServer) GetOrCreateModel(flow Flow)  (repo *ws.Repo, branch *ws.Br
   return 
 }
 
-func (fs *FlowServer) GetModel(flowId string) (repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, fnErr error) {
+func (fs *FlowServer) GetModel(flow Flow) (repo *ws.Repo, branch *ws.Branch, commit *ws.Commit, fnErr error) {
+  
+  if flow.Id == "" {
+    fnErr = fmt.Errorf("Invalid flow ID")
+    return 
+  }
 
-  if flow_attrs, err := fs.GetFlowAttr(flowId); flow_attrs != nil {
+  if flow_attrs, err := fs.GetFlowAttr(flow.Id); flow_attrs != nil {
     master, m_branch, m_commit := flow_attrs.masterRepo()
     repo, branch, commit, fnErr = fs.wsapi.GetModel(master, m_branch, m_commit)
     return

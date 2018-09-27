@@ -27,8 +27,12 @@ func exitWithError(format string, args ...interface{}) {
   os.Exit(1)
 }
 
-func hasWhiteSpace(s string) bool{
-  return strings.ContainsAny(s, " ")
+func validRepoName(s string) bool{
+  if strings.ContainsAny(s, " ") || strings.ContainsAny(s, "/") {
+    return true
+  }
+
+  return  false
 }
 
 const (
@@ -36,11 +40,9 @@ const (
 )
 
 func RepoCommands() []*cobra.Command {
-  var task_id string
   var repo_name string
   var branch_name string
-  var commit_id string
-  var commit_id string
+  var commit_id string 
 
   repo_cmd := &cobra.Command{
     Use: "repo",
@@ -63,9 +65,11 @@ func RepoCommands() []*cobra.Command {
       }  
 
       repo_name = args[0]
-      if len(args) > 1 || hasWhiteSpace(repo_name) {
+      
+      if len(args) > 1 || validRepoName(repo_name) {
         exitWithError("Repo name can not have spaces")
       }
+
       current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
       r, _ := config.ReadRepoParams(current_dir, "REPO_NAME")
@@ -93,14 +97,14 @@ func RepoCommands() []*cobra.Command {
     Use: "clone",
     Short: "clone a new Repo",
     //TODO: add command details
-    Long: `Clones a new repo from remote URL.`, 
+    Long: `Clones a given repo`, 
     Run: func(cmd *cobra.Command, args []string) {
       current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
       fmt.Println("directory: ", current_dir)
-
+      
       if len(args) == 0 {
         exitWithError("Please enter Repo name")
-        clone_cmd.Usage()
+        cmd.Usage()
       }
 
       repo_name := args[0]
@@ -112,25 +116,43 @@ func RepoCommands() []*cobra.Command {
         branch_name = "master"
       }
 
+      // args override 
+      if len(args) >= 2 {
+        branch_name = args[1]
+      }
+
+      // args override 
+      if len(args) >= 3 {
+        commit_id = args[2]
+      }
+
       repo_dir := dirNameForRepo(repo_name)
       if repo_dir == "" {
         exitWithError("Directory name can not be null")
       }
 
+      r, _ := config.ReadRepoParams(repo_dir, "REPO_NAME")
+      if r != "" {
+        exitWithError("A Repo is already initialized in this directory:", r)
+      }  
+
+
       repo_dir = filepath.Join(current_dir, repo_dir)
       c, _ := client.New(repo_dir)
-      err := c.CloneRepo(repo_name, branch_name, commit_id)
+
+      clone_commit_id, err := c.CloneCommit(repo_name, branch_name, commit_id)
       if err != nil {
         exitWithError(err.Error())
       }
 
-      _ = config.WriteRepoParams(current_dir, "REPO_NAME", repo_name)
-      _ = config.WriteRepoParams(current_dir, "BRANCH_NAME", branch_name)
-      _ = config.WriteRepoParams(current_dir, "COMMIT_ID", commit_id)
+      _ = config.WriteRepoParams(repo_dir, "REPO_NAME", repo_name)
+      _ = config.WriteRepoParams(repo_dir, "BRANCH_NAME", branch_name)
+      _ = config.WriteRepoParams(repo_dir, "COMMIT_ID", clone_commit_id)
+    
     },
   }  
-  clone_cmd.PersistentFlags().StringVar(&commit_id, "commit", "c", "", "commit Id")
-  clone_cmd.PersistentFlags().StringVar(&branch_name, "branch", "b", "", "branch name")
+  clone_cmd.PersistentFlags().StringVarP(&commit_id, "commit", "c", "", "commit Id")
+  clone_cmd.PersistentFlags().StringVarP(&branch_name, "branch", "b", "", "branch name")
 
   repo_cmd.AddCommand(clone_cmd)
 

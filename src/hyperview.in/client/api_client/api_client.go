@@ -3,23 +3,26 @@ package api_client
 // what: Client to access apis and process
 
 import ( 
-  "fmt"
-  "net/url"
   "io"
+  "fmt"
+  "bytes"
+  "net/url"
+  "io/ioutil"
   "encoding/json"
 
-
   "hyperview.in/client/config"
-  "hyperview.in/client/rest_client"  
-
-  "hyperview.in/server/base"
-
-  ws "hyperview.in/server/core/workspace"
-   
-
- 
+  "hyperview.in/client/rest_client"   
+  "hyperview.in/server/base"  
+  
+  flow_pkg "hyperview.in/server/core/flow"
+  ws "hyperview.in/server/core/workspace" 
 )
-    
+ 
+const (
+  RestCallLimit int = 4
+  outUrlPath = "/output"
+  modelUrlPath = "/model"
+  )    
 type ApiClient struct { 
   serverAddr *url.URL
   config *config.UrlMap
@@ -27,12 +30,12 @@ type ApiClient struct {
   //TODO: add stats 
 }
 
-func NewApiClient(addr *url.URL, c *config.UrlMap, parallel int) (*ApiClient, error) {
+func NewApiClient(addr *url.URL, c *config.UrlMap) (*ApiClient, error) {
 
   return &ApiClient {
     serverAddr: addr,
     config: c,
-    concurrency: parallel,
+    concurrency: RestCallLimit,
   }, nil
 
 }
@@ -52,17 +55,63 @@ func (c *ApiClient) InitRepo(repoName string) error {
   return nil
 
 }
- 
 
-func (c *ApiClient) GetFileObject(repoName, branchName, commitId, filePath string) (io.ReadCloser, error) {
+func (c *ApiClient) GetOutputRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  client, _ := rest_client.New(c.serverAddr, c.config.FlowUriPath)
+  subpath := "/" + flowId + outUrlPath
+  req := client.VerbSp("GET", subpath)
+  
+  base.Info("[ApiClient.GetOutputRepo] Calling Url: ", req.URL())
+
+  resp := req.Do()
+  json_resp, err := resp.Raw()
+
+  repo_msg := ws.RepoMessage{}
+  err = json.Unmarshal(json_resp, &repo_msg)
+
+  if err != nil {
+    return nil, nil, nil , err
+  }
+
+  if repo_msg.Repo != nil {
+    return repo_msg.Repo, repo_msg.Branch, repo_msg.Commit, nil
+  }
+
+  return nil, nil, nil, unknownError("[GetOutputRepo]")
+}
+
+func (c *ApiClient) GetModelByFlowId(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  client, _ := rest_client.New(c.serverAddr, c.config.FlowUriPath)
+  subpath := "/" + flowId + modelUrlPath 
+  req := client.VerbSp("GET", subpath)
+  
+  resp := req.Do()
+  json_resp, err := resp.Raw()
+
+  repo_msg := ws.RepoMessage{}
+  err = json.Unmarshal(json_resp, &repo_msg)
+
+  if err != nil {
+    return nil, nil, nil , err
+  }
+
+  if repo_msg.Repo != nil {
+    return repo_msg.Repo, repo_msg.Branch, repo_msg.Commit, nil
+  }
+
+  return nil, nil, nil, unknownError("[GetOutputRepo]")
+}
+
+func (c *ApiClient) GetFileObject(repoName, branchName, commitId, filePath string) (string, io.ReadCloser, error) {
+  
   client, _ := rest_client.New(c.serverAddr, c.config.ObjectUriPath)
   f_request := client.Verb("GET")
   f_request.Param("repoName", repoName)
   f_request.Param("branchName", branchName)
   f_request.Param("commitId", commitId)
-  f_request.Param("filePath", filePath)
+  f_request.Param("filePath", filePath) 
 
-  return f_request.ReadResponse()
+  return f_request.ResponseReader()
 } 
 
 func (c *ApiClient) GetOrCreateCommit(repoName, branchName, commitId string) (*ws.Commit, error) {
@@ -102,4 +151,49 @@ func (c *ApiClient) PutObjectWriter(repoName string, branchName string, commitId
 
   return hw, nil
 }
+
+
+func (c *ApiClient) RunTask(rname, bname, headCommitId, cmdStr string) (newFlow *flow_pkg.Flow, newCommit *ws.Commit, fnError error) {
+  
+  client, _ := rest_client.New(c.serverAddr, c.config.FlowUriPath)
+  req := client.Verb("POST") 
+
+  flow_msg := flow_pkg.FlowMessage {
+    CmdStr: cmdStr,
+    Repos: []*ws.RepoMessage{
+      {
+        Repo: &ws.Repo{
+          Name: rname,
+        },
+        Branch: &ws.Branch{
+          Name: bname,
+        },
+        Commit: &ws.Commit{
+          Id: headCommitId,
+        },
+      },
+    },
+  }
  
+  json_msg, _ := json.Marshal(&flow_msg) 
+  _ = req.SetBodyReader(ioutil.NopCloser(bytes.NewReader(json_msg)))
+
+  resp := req.Do()
+  json_response, err := resp.Raw()  
+  
+  if err != nil {
+    base.Error("[ApiClient.RunTask] Failed while calling launch flow end point: ", err)
+    fnError = err
+    return 
+  }
+
+  flow_resp :=  flow_pkg.FlowMessage{}
+  err = json.Unmarshal(json_response, &flow_resp)
+  if len(flow_resp.Repos) > 0 {
+    // todo: need a better way to get master repo commit 
+    newCommit = flow_resp.Repos[0].Commit
+  }
+  return flow_resp.Flow, newCommit, nil
+} 
+
+

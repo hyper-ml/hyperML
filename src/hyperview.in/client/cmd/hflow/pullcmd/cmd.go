@@ -7,7 +7,10 @@ import (
   "strings"
   "path/filepath"
   "github.com/spf13/cobra"
+  
+  "hyperview.in/server/base"
 
+  "hyperview.in/client/config"
   client "hyperview.in/client"
 )
 
@@ -37,22 +40,38 @@ func PullCommand() *cobra.Command {
     Long: `Pull Results from task run`, 
     Run: func(cmd *cobra.Command, args []string) {
       current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-      task_id, _ := config.ReadRepoParams(current_dir, "FLOW_ID")
 
-      if len(args) == 0 { 
-        exitWithError("Task Id is mandatory")
+      switch task_id {
+        case "" :
+          switch {
+            case len(args) > 0:   
+              task_id = args[0] 
+            case len(args) == 0:
+              task_id, _ = config.ReadRepoParams(current_dir, "FLOW_ID")   
+          }
+
+        default: 
+          base.Debug("[pull_res_cmd] Task Id: ", task_id)
+      }
+ 
+      if task_id == "" {
+        exitWithError("Task (Id) is mandatory")
       }
 
-      task_id = args[1]
-
       c, _ := client.New(current_dir) 
-      err := c.PullResults(task_id)
+      out_dir, out_repo, out_branch, out_commit, err := c.PullResults(task_id)
 
       if err != nil {
         exitWithError("pull_results_error: %s", err)
-      }
+      } 
+
+      _ = config.WriteRepoParams(out_dir, "REPO_NAME", out_repo.Name)
+      _ = config.WriteRepoParams(out_dir, "BRANCH_NAME", out_branch.Name)
+      _ = config.WriteRepoParams(out_dir, "COMMIT_ID", out_commit.Id)
+
     },
   }  
+
   pull_res_cmd.PersistentFlags().StringVar(&task_id, "task", "", "Task Id")
   pull_cmd.AddCommand(pull_res_cmd)
 
@@ -62,20 +81,34 @@ func PullCommand() *cobra.Command {
     Long: `Pull saved models  from task run`, 
     Run: func(cmd *cobra.Command, args []string) {
       current_dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-      task_id, _ := config.ReadRepoParams(current_dir, "TASK_ID")
+      switch task_id {
+        case "" :
+          switch {
+            case len(args) > 0:   
+              task_id = args[1] 
+            case len(args) == 0:
+              task_id, _ = config.ReadRepoParams(current_dir, "FLOW_ID")   
+          }
 
-      if len(args) == 0 { 
-        exitWithError("Task Id is mandatory")
+        default: 
+          base.Debug("[pull_res_cmd] Task Id: ", task_id)
+      }
+ 
+      if task_id == "" {
+        exitWithError("Task (Id) is mandatory")
       }
 
-      task_id = args[1]
-
       c, _ := client.New(current_dir) 
-      err := c.PullSavedModels(task_id)
+      saved_dir, saved_repo, saved_branch, saved_commit, err := c.PullSavedModels(task_id)
 
       if err != nil {
         exitWithError("pull_models_error: %s", err)
       }
+
+      _ = config.WriteRepoParams(saved_dir, "REPO_NAME", saved_repo.Name)
+      _ = config.WriteRepoParams(saved_dir, "BRANCH_NAME", saved_branch.Name)
+      _ = config.WriteRepoParams(saved_dir, "COMMIT_ID", saved_commit.Id)
+
     },
   }  
 

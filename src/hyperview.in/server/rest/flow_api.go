@@ -101,13 +101,14 @@ func (h *Handler) handleLaunchFlow() error {
   return nil
 }
  
-func (h *Handler) handleGetFlowOutput() error {
+func (h *Handler) handleGetOutputByFlow() error {
   
   if (h.rq.Method != "GET") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
-  
   flow_id, _ := h.getMandatoryUrlParam("flowId")
+  base.Info("[Handler.handleGetOutputByFlow] FlowId: ", flow_id)
+
   if flow_id == "" {
     return base.HTTPErrorf(http.StatusBadRequest, "Invalid flowId params %s", flow_id)   
   } 
@@ -134,7 +135,7 @@ func (h *Handler) handleGetFlowOutput() error {
   return nil
 }
 
-func (h *Handler) handleGetOrCreateFlowOutput() error {
+func (h *Handler) handleGetOrCreateOutputByFlow() error {
   if (h.rq.Method != "POST") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
@@ -168,7 +169,41 @@ func (h *Handler) handleGetOrCreateFlowOutput() error {
 }
 
 
-func (h *Handler) handleGetOrCreateFlowModel() error {
+func (h *Handler) handleGetModelByFlow() error {
+  
+  if (h.rq.Method != "GET") {
+    return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
+  }
+  
+  flow_id, _ := h.getMandatoryUrlParam("flowId")
+  if flow_id == "" {
+    return base.HTTPErrorf(http.StatusBadRequest, "Invalid flowId params %s", flow_id)   
+  } 
+
+  f := flow_pkg.Flow { Id: flow_id }
+  repo, branch, commit, err := h.server.flowServer.GetModel(f)
+  
+  if err != nil {
+   return base.HTTPErrorf(http.StatusBadRequest, "Request failed %s", err.Error())    
+  }
+
+  if repo == nil {
+    return base.HTTPErrorf(http.StatusBadRequest, "Request failed ")    
+  }
+  
+  model_repo := &ws.RepoMessage {
+    Repo: repo,
+    Branch: branch,
+    Commit: commit,
+  } 
+
+  response := structs.Map(model_repo)
+  h.writeJSON(response)
+  return nil
+}
+
+
+func (h *Handler) handleGetOrCreateModelByFlow() error {
    if (h.rq.Method != "POST") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
@@ -189,13 +224,13 @@ func (h *Handler) handleGetOrCreateFlowModel() error {
     return base.HTTPErrorf(http.StatusBadRequest, "Request failed ")    
   }
 
-  out_repo := &ws.RepoMessage{
+  model_repo := &ws.RepoMessage{
     Repo: repo,
     Branch: branch,
     Commit: commit,
   }
 
-  response := structs.Map(out_repo)
+  response := structs.Map(model_repo)
   h.writeJSON(response)
 
   return nil

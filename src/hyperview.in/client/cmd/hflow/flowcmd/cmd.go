@@ -3,6 +3,7 @@ package flowcmd
 import (
   "fmt"
   "os"
+  "strings"
   "path/filepath"
   "github.com/spf13/cobra"
   "hyperview.in/client/config"
@@ -14,6 +15,13 @@ const (
   concurrency = 10
 )
 
+
+func exitWithError(format string, args ...interface{}) {
+  if errString := strings.TrimSpace(fmt.Sprintf(format, args...)); errString != "" {
+    fmt.Fprintf(os.Stderr, "%s\n", errString)
+  }
+  os.Exit(1)
+}
 
 
 func FlowCommands() []*cobra.Command {
@@ -32,10 +40,21 @@ func FlowCommands() []*cobra.Command {
       commit_id, _ := config.ReadRepoParams(current_dir, "COMMIT_ID")
 
       c, _ := client.New(current_dir)
-      flow_id, new_commit_id, task_resp, err := c.RunTask(repo_name, branch_name, commit_id, task)
-      _ = config.WriteRepoParams(current_dir, "FLOW_ID", flow_id)
-      _ = config.WriteRepoParams(current_dir, "COMMIT_ID", new_commit_id)
-  
+      flow, commit,  err := c.RunTask(repo_name, branch_name, commit_id, task)
+      
+      if err != nil {
+        exitWithError(err.Error())
+      }
+
+      if flow != nil {
+        _ = config.WriteRepoParams(current_dir, "FLOW_ID", flow.Id)
+        _ = config.WriteRepoParams(current_dir, "TASK_ID", flow.Id)
+      }
+      
+      if commit != nil {
+        _ = config.WriteRepoParams(current_dir, "COMMIT_ID", commit.Id)
+      }
+ 
     },
   }
   flow_cmd.Flags().StringVarP(&task, "task","t", "", "task command")

@@ -9,7 +9,7 @@ import (
 func DirNameForRepo(repoName string) string {
   reg, err := regexp.Compile("[^a-zA-Z0-9]+")
   if err != nil {
-    return 
+    return ""
   }
   return reg.ReplaceAllString(repoName, "")
 }

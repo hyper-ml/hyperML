@@ -19,6 +19,7 @@ type UrlMap struct {
   FileUriPath string
   FileAttrsUriPath string
   ObjectUriPath string
+  FlowUriPath string
   FlowAttrsUriPath string
   TaskAttrsUriPath string
   TaskStatusUriPath string
@@ -72,7 +73,8 @@ func Default() (*Config) {
       ObjectUriPath: "object",
       VfsUriPath: "vfs",
       WorkerUriPath: "worker",
-      FlowAttrsUriPath: "flow",
+      FlowUriPath: "flow",
+      FlowAttrsUriPath: "flow_attrs",
       TaskAttrsUriPath: "tasks",
       TaskStatusUriPath: "task_status",
       }, 

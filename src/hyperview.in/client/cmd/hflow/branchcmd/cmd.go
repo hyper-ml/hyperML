@@ -23,7 +23,7 @@ func exitWithError(format string, args ...interface{}) {
 
 func addBranch(current_dir string, brname string) error {
   
-  c, _ := client.NewApiClient(current_dir)
+  c, _ := client.New(current_dir)
   repo_name, _ := config.ReadRepoParams(current_dir, "REPO_NAME")
   current_commit_id,_ := config.ReadRepoParams(current_dir, "COMMIT_ID")  
   
@@ -42,8 +42,8 @@ func checkout(current_dir string, brname string) error {
   // set branch 
   repo_name, _ := config.ReadRepoParams(current_dir, "REPO_NAME")
 
-  c, _ := client.NewApiClient(current_dir)
-  commit_id, err := c.CloneRepo(repo_name, brname)
+  c, _ := client.New(current_dir)
+  commit_id, err := c.CloneBranch(repo_name, brname)
   if err != nil {
     return err 
   }

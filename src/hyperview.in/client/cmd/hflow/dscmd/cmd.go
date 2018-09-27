@@ -48,7 +48,7 @@ func DsCommand() *cobra.Command {
       dataset_name = args[0]
       base.Debug("name of ds: ", dataset_name)
 
-      c, _ := client.NewApiClient(current_dir)
+      c, _ := client.New(current_dir)
       err := c.InitDataRepo(current_dir, dataset_name)
       if err != nil {
         exitWithError(err.Error())

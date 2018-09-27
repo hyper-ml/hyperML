@@ -31,7 +31,7 @@ func (c *ApiClient) GetCommitMap(repoName, commitId string) (*ws.FileMap, error)
 
 func (c *ApiClient) RequestLog(flowId string) ([]byte, error) {
   
-  client, _   := rest_client.New(c.serverAddr, c.config.FlowAttrsUriPath)
+  client, _   := rest_client.New(c.serverAddr, c.config.FlowUriPath)
   sub_path := "/" + flowId + "/log"
   log_req  := client.VerbSp("GET", sub_path)
 

@@ -434,7 +434,7 @@ func (w *WorkHorse) PushTaskStatusWithMessage(status tsk.TaskStatus, msg string)
 func (w *WorkHorse) getTaskUserEnv(Id string) []string{
   return nil
 }
- 
+  
 func (w *WorkHorse) getRepoFromFlowConfig() (string, string, string, error){
   if w.flowAttrs == nil {
     return "", "", "", fmt.Errorf("Repo Information is unavailble to generate model repo")
@@ -457,15 +457,15 @@ func (w *WorkHorse) getRepoFromFlowConfig() (string, string, string, error){
 }
 
 func (w *WorkHorse) setModelRepo() error {
-  source_repo, source_branch, source_commit, err := w.getRepoFromFlowConfig()
-  if err != nil {
-    base.Warn("[WorkHorse.setModelRepo] Failed to retrieve master repo from flow config: ", err)
-    return err 
+  
+  if w.flowAttrs == nil {
+    return utils.ErrMissingFlowAttrs()
   }
 
-  repo, branch, commit, err := w.wc.GetOrCreateModelRepo(source_repo, source_branch, source_commit)
+  flow_id := w.flowAttrs.Flow.Id
+  repo, branch, commit, err := w.wc.GetOrCreateModelRepo(flow_id)
   if err != nil {
-    base.Warn("[WorkHorse.setModelRepo] Failed to get model repo for master repo/commit: ", source_repo, source_commit, err)
+    base.Warn("[WorkHorse.setModelRepo] Failed to get model repo for the task: ", flow_id, err)
     return err
   }
 

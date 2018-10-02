@@ -65,7 +65,7 @@ func (c *ApiClient) GetOutputRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Comm
 
   resp := req.Do()
   json_resp, err := resp.Raw()
-
+  base.Info("[ApiClient.GetOutputRepo] json_resp: ", string(json_resp))
   repo_msg := ws.RepoMessage{}
   err = json.Unmarshal(json_resp, &repo_msg)
 
@@ -73,14 +73,12 @@ func (c *ApiClient) GetOutputRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Comm
     return nil, nil, nil , err
   }
 
-  if repo_msg.Repo != nil {
-    return repo_msg.Repo, repo_msg.Branch, repo_msg.Commit, nil
-  }
-
-  return nil, nil, nil, unknownError("[GetOutputRepo]")
+  base.Info("[ApiClient.GetModelByFlowId] repo_msg from server: ", string(json_resp))
+  return repo_msg.Repo, repo_msg.Branch, repo_msg.Commit, nil
 }
 
 func (c *ApiClient) GetModelByFlowId(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+
   client, _ := rest_client.New(c.serverAddr, c.config.FlowUriPath)
   subpath := "/" + flowId + modelUrlPath 
   req := client.VerbSp("GET", subpath)
@@ -95,11 +93,8 @@ func (c *ApiClient) GetModelByFlowId(flowId string) (*ws.Repo, *ws.Branch, *ws.C
     return nil, nil, nil , err
   }
 
-  if repo_msg.Repo != nil {
-    return repo_msg.Repo, repo_msg.Branch, repo_msg.Commit, nil
-  }
-
-  return nil, nil, nil, unknownError("[GetOutputRepo]")
+  base.Info("[ApiClient.GetModelByFlowId] repo_msg from server: ", string(json_resp))
+  return repo_msg.Repo, repo_msg.Branch, repo_msg.Commit, nil
 }
 
 func (c *ApiClient) GetFileObject(repoName, branchName, commitId, filePath string) (string, io.ReadCloser, error) {
@@ -114,6 +109,28 @@ func (c *ApiClient) GetFileObject(repoName, branchName, commitId, filePath strin
   return f_request.ResponseReader()
 } 
 
+
+func (c *ApiClient) GetCommit(repoName, branchName, commitId string) (*ws.Commit, error) {
+  client, err := rest_client.New(c.serverAddr, c.config.CommitAttrsUriPath)
+  req := client.Verb("GET")
+  req.Param("repoName", repoName)
+  req.Param("branchName", branchName)
+  req.Param("commitId", commitId)
+
+  resp := req.Do()
+  json_body, err := resp.Raw()
+
+  if err != nil {
+    base.Log("[ApiClient.GetOrCreateCommit] Failed to retrieve an open repo commit: ", err)
+    return nil, err
+  }
+
+  commit_attrs := &ws.CommitAttrs{}
+  err = json.Unmarshal(json_body, &commit_attrs)
+
+  return commit_attrs.Commit, nil
+}
+
 func (c *ApiClient) GetOrCreateCommit(repoName, branchName, commitId string) (*ws.Commit, error) {
   client, err := rest_client.New(c.serverAddr, c.config.CommitUriPath)
   req := client.Verb("GET")
@@ -125,7 +142,7 @@ func (c *ApiClient) GetOrCreateCommit(repoName, branchName, commitId string) (*w
   json_body, err := resp.Raw()
 
   if err != nil {
-    base.Log("[ApiClient.PushRepo] Failed to retrieve an open repo commit: ", err)
+    base.Log("[ApiClient.GetOrCreateCommit] Failed to retrieve an open repo commit: ", err)
     return nil, err
   }
   commit_attrs := &ws.CommitAttrs{}

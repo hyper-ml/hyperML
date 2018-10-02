@@ -117,6 +117,7 @@ func (q *queryServer) getCommitKey(repoName string, commitId string) string {
 }
 
 func (q *queryServer) GetBranchCommitById(repoName string, branchName string, commitId string) (*CommitAttrs, error) {
+
   var err error
   commit_key:= q.getCommitKey(repoName, commitId)
   data, err := q.db.Get(commit_key)
@@ -127,12 +128,17 @@ func (q *queryServer) GetBranchCommitById(repoName string, branchName string, co
 }
 
 func (q *queryServer) GetCommitAttrsById(repoName string, commitId string) (*CommitAttrs, error) {
+
   var err error
-  commit_key:= q.getCommitKey(repoName, commitId)
+  commit_key:= q.getCommitKey(repoName, commitId)  
   data, err := q.db.Get(commit_key)
   
   commit_attrs :=  &CommitAttrs{} 
+
   err = json.Unmarshal(data, &commit_attrs)
+  if err != nil {
+    base.Info("[queryServer.GetCommitAttrsById] Commit Attributes JSON invalid: ", err, commit_key)
+  }
   return commit_attrs, err
 }
 

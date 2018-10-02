@@ -42,16 +42,13 @@ type objAPIServer struct {
 	dir string
 	storageClient Client
 
-  // cache structures
-  objCache *groupcache.Group
-  objCacheBytes int64
 }
 
 
 
 // TODO: cache small files. 
 // Google storage is fast enough so this need can be parked for now
-func newObjectAPIServer(dir string, client Client, cacheBytes int64) (*objAPIServer, error){
+func newObjectAPIServer(dir string, client Client) (*objAPIServer, error){
 	 
   o := &objAPIServer{
     dir: dir,
@@ -60,7 +57,7 @@ func newObjectAPIServer(dir string, client Client, cacheBytes int64) (*objAPISer
   return o, nil
 }
 
-func newGoogleStorageAPIServer(dir string, cacheBytes int64) (*objAPIServer, error) {
+func newGoogleStorageAPIServer(dir string) (*objAPIServer, error) {
 	bucket := base.GetEnv("GOOGLE_STORAGE_BUCKET")
   
   if bucket == "" {
@@ -74,10 +71,10 @@ func newGoogleStorageAPIServer(dir string, cacheBytes int64) (*objAPIServer, err
 		return nil, err
 	}
 
-	return newObjectAPIServer(dir, storageClient, cacheBytes)
+	return newObjectAPIServer(dir, storageClient)
 }
 
-func newGoogleBucketAPIServer(bucket string, dir string, cacheBytes int64) (*objAPIServer, error) {
+func newGoogleBucketAPIServer(bucket string, dir string) (*objAPIServer, error) {
   
   if bucket == "" {
     return nil, fmt.Errorf("Set GOOGLE_STORAGE_BUCKET variable to use google storage option")
@@ -90,7 +87,7 @@ func newGoogleBucketAPIServer(bucket string, dir string, cacheBytes int64) (*obj
     return nil, err
   }
 
-  return newObjectAPIServer(dir, storageClient, cacheBytes)
+  return newObjectAPIServer(dir, storageClient)
 }
 
 func (s *objAPIServer) BasePath() string {

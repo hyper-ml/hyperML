@@ -19,7 +19,17 @@ type DatabaseContext struct {
 }
 
 // TODO: add listener activate flag
-func NewDatabaseContext(db_name string, db_user string, db_password string) (*DatabaseContext, error) {
+func NewDatabaseContext(driver string, name string, user string, pass string) (*DatabaseContext, error) {
+  
+  switch driver {
+    case 'POSTGRES': 
+      return NewPostgresContext(name, user, pass)
+  }
+
+  return nil, fmt.Errorf("Failed to initiate database context")
+}
+
+func NewPostgresContext(name, user, pass string) (*DatabaseContext, error) {
   var err error
   var conn_str string
 
@@ -40,6 +50,7 @@ func NewDatabaseContext(db_name string, db_user string, db_password string) (*Da
   change_lnr := NewChangeListener(25)
 
   return &DatabaseContext{Name: db_name, conn: db, LastCall: time.Now(), Listener: change_lnr}, nil
+
 }
 
 

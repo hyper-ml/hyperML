@@ -125,11 +125,24 @@ func (fs *RepoFs) syncFileMap() error {
   return nil
 }
 
-func (fs *RepoFs) SetCommit() error {
+func (fs *RepoFs) queryCommit() error {repo_name, branch_name, commit_id := fs.GetRepoParams()
+  
+  commit, err := fs.api.GetCommit(repo_name, branch_name, commit_id)
+  if err != nil {
+    base.Debug("[RepoFs.queryCommit] Get Commit Failure: ", err)
+    return err
+  }
+
+  fs.commit = commit
+  return nil
+}
+
+func (fs *RepoFs) setCommit() error {
   repo_name, branch_name, commit_id := fs.GetRepoParams()
   
   commit, err := fs.api.GetOrCreateCommit(repo_name, branch_name, commit_id)
   if err != nil {
+    base.Debug("[RepoFs.setCommit] Get or Create Commit Failure: ", err)
     return err
   }
 
@@ -147,8 +160,9 @@ func (fs *RepoFs) Clone() (*ws.Commit, error) {
     base.Error("[RepoFs.Clone] Failed to create repo directory. ", err)
     return nil, err
   }
-  if err := fs.SetCommit(); err != nil {
-    base.Error("[RepoFs.Clone] Failed to create or get commit ", err)
+
+  if err := fs.queryCommit(); err != nil {
+    base.Error("[RepoFs.Clone] Failed to get commit ", err)
     return nil, err
   } 
 
@@ -306,7 +320,7 @@ func (fs *RepoFs) pushCodeUpdates() error {
 
 func (fs *RepoFs) PushRepo() (commit *ws.Commit, fnError error) {
 
-  if err := fs.SetCommit(); err != nil {
+  if err := fs.setCommit(); err != nil {
     return nil, err
   }
 

@@ -13,6 +13,15 @@ func SetEnv() {
 }
 
 
+func SetEnvVar(name, value string) error {
+  os.SetEnv(name, value)
+  return nil
+}
+
+func GetEnvVar(name string) string {
+  return os.GetEnv(name)
+}
+
 func GetEnv(name string) string{
 	return os.Getenv(name)
 }

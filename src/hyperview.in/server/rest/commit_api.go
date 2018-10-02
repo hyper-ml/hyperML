@@ -48,7 +48,7 @@ func (h *Handler) handleGetCommitAttrs() error {
 
 
 func (h *Handler) handleGetOrStartCommit() error {
-  base.Debug("[Handler.handleGetOrStartCommit]")
+  
   if (h.rq.Method != "GET") {
     return base.HTTPErrorf(http.StatusMethodNotAllowed, "Invalid method %s", h.rq.Method)
   }
@@ -57,15 +57,14 @@ func (h *Handler) handleGetOrStartCommit() error {
   repo_name := h.getQuery("repoName")
   branch_name := h.getQuery("branchName")
   commit_id := h.getQuery("commitId")
+  base.Info("[Handler.handleGetOrStartCommit] repo_name, branch_name, commit_id: ", repo_name, branch_name, commit_id)
 
   //TODO: handle error
   commit_attrs, err := h.server.workspaceApi.InitCommit(repo_name, branch_name, commit_id)
   
   if err != nil {
-    return base.HTTPErrorf(http.StatusBadRequest, "Failed to initialize a commit: " + err.Error())
+    return base.HTTPErrorf(http.StatusBadRequest, " Failed to initialize a commit: " + err.Error())
   }
-
-  base.Debug("[Handler.handlePostRepo] Repo created ", repo_name)
   
   response = structs.Map(commit_attrs)
   h.writeJSON(response) 

@@ -67,7 +67,10 @@ func PullCommand() *cobra.Command {
 
       _ = config.WriteRepoParams(out_dir, "REPO_NAME", out_repo.Name)
       _ = config.WriteRepoParams(out_dir, "BRANCH_NAME", out_branch.Name)
-      _ = config.WriteRepoParams(out_dir, "COMMIT_ID", out_commit.Id)
+      
+      if out_commit != nil {
+        _ = config.WriteRepoParams(out_dir, "COMMIT_ID", out_commit.Id)
+      }
 
     },
   }  
@@ -85,7 +88,7 @@ func PullCommand() *cobra.Command {
         case "" :
           switch {
             case len(args) > 0:   
-              task_id = args[1] 
+              task_id = args[0] 
             case len(args) == 0:
               task_id, _ = config.ReadRepoParams(current_dir, "FLOW_ID")   
           }

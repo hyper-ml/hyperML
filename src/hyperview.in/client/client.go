@@ -1,6 +1,8 @@
 package client
 
-import (
+import ( 
+  "fmt"
+  "strings"
   "net/url"
   "path/filepath"
   "hyperview.in/client/api_client"
@@ -101,22 +103,28 @@ func (c *client) RequestLog(flowId string) ([]byte, error) {
   return c.api.RequestLog(flowId)
 }
 
+func (c *client) getOutDir(flowId string) string {
+  parent_dir := filepath.Join(c.repoPath, OutDirName)
+  return filepath.Join(parent_dir, flowId)
+}
 
 // returns output repo details for local param storage 
 //
 func (c *client) PullResults(flowId string) (string, *ws.Repo, *ws.Branch, *ws.Commit, error) {
   
-  // to do :
-  base.Info("[client.PullResults] TODO")
-  parent_dir := filepath.Join(c.repoPath, OutDirName)
-  out_dir :=  filepath.Join(parent_dir, flowId)
-
+  out_dir :=  c.getOutDir(flowId)
   base.Info("[client.PullResults] out_dir: ", out_dir)
 
   // get out repo for the flow 
   out_repo, out_branch, out_commit, err := c.api.GetOutputRepo(flowId)
   
   if err != nil {
+    
+    if strings.Contains(err.Error(), "unexpected end of JSON input") { 
+      base.Error("[client.PullResults] empty json response")
+      return "", nil, nil, nil, fmt.Errorf("No results against this task.")
+    }
+
     base.Error("[client.PullResults] Failed to retrieve out repo for given task: ", err)
     return "", nil, nil, nil, err
   }
@@ -132,31 +140,35 @@ func (c *client) PullResults(flowId string) (string, *ws.Repo, *ws.Branch, *ws.C
 
   return out_dir, out_repo, out_branch, commit, nil
 }
+ 
 
-func (c *client) PullSavedModels(flowId string) (string, *ws.Repo, *ws.Branch, *ws.Commit, error) {
-  // to do :
-  base.Info("[client.PullSavedModels] TODO")
+func (c *client) getModelDir(flowId string) string {
   parent_dir := filepath.Join(c.repoPath, SavedModelsDirName)
-  model_dir :=  filepath.Join(parent_dir, flowId)
+  return filepath.Join(parent_dir, flowId)
+}
 
-  base.Info("[client.PullSavedModels] out_dir: ", model_dir)
+func (c *client) PullSavedModels(flowId string) (modelDir string, modelRepo *ws.Repo, modelBranch *ws.Branch, modelCommit *ws.Commit, fnError error) {
 
-  // get out repo for the flow 
+  model_dir := c.getModelDir(flowId)
+  base.Info("[client.PullSavedModels] model_dir: ", model_dir)
+
   model_repo, model_branch, model_commit, err := c.api.GetModelByFlowId(flowId)
   
-  if err != nil {
-    base.Error("[client.PullSavedModels] Failed to retrieve out repo for given task: ", err)
-    return "", nil, nil, nil, err
+  switch {
+  case err != nil:
+    return model_dir, nil, nil, nil, err
+  case model_repo.Name == "" && model_commit.Id == "":
+    return model_dir, nil, nil, nil, base.ErrNullModelRepo() 
   }
 
-  base.Debug("[client.PullSavedModels] model Repo, Branch and Commit: ", model_repo, model_branch, model_commit)
-  // clone out in results folder repo 
-  // hope all pans out 
+  base.Info("[client.PullSavedModels] model Repo, Branch and Commit: ", model_repo, model_branch, model_commit)
 
   model_fs := fs.NewRepoFs(model_dir, 0, model_repo.Name, model_branch.Name, model_commit.Id, c.api)
   commit, err := model_fs.Clone()
+  
   if err != nil {
-    return "", nil, nil, nil, err
+    base.Error("[client.PullSavedModels] Model Repo clone failed: ", err)
+    return model_dir, nil, nil, nil, err
   }
 
   return model_dir, model_repo, model_branch, commit, nil

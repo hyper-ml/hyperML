@@ -15,6 +15,7 @@ import (
   "hyperview.in/server/base" 
 
   "hyperview.in/worker/config" 
+  "hyperview.in/worker/utils" 
   "hyperview.in/worker/rest_client" 
   //tsk "hyperview.in/server/core/tasks"
   flw "hyperview.in/server/core/flow"
@@ -308,23 +309,37 @@ func (wc *WorkerClient) DetachWorker(flowId string, taskId string, workerId stri
   return nil
 }
 
-func (wc *WorkerClient) GetOrCreateModelRepo(srcRepoName, srcBranch, srcCommitId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
-  path:= srcRepoName + "/branch/" + srcBranch + "/commit/"+ srcCommitId +"/model"
-  req := wc.RepoAttrs.VerbSp("POST", path)
+func (wc *WorkerClient) GetOrCreateModelRepo(flowId string) (*ws.Repo, *ws.Branch, *ws.Commit, error) {
+  
+  model_uri := "/" + flowId +"/model"
+  req := wc.RepoAttrs.VerbSp("POST", model_uri)
 
   base.Info("[WorkerClient.GetOrCreateModelRepo] Model Repo creation url: ", req.URL())
+  
   resp := req.Do()
   body, err := resp.Raw()
-  if err != nil {
+  
+  switch {
+  case err != nil:
     return nil, nil, nil, err
-  }
+  case body == nil:
+    base.Info("[WorkerClient.GetOrCreateModelRepo] Received empty body")
+    return nil, nil, nil, utils.ErrHttpEmptyResponse()
+  } 
 
   model_response := &ws.RepoMessage{}
   err = json.Unmarshal(body, model_response)
   
+  switch {
+  case err != nil:
+    return nil, nil, nil, err
+  case model_response.Repo == nil:
+    base.Info("[WorkerClient.GetOrCreateModelRepo] Failed to generate model repo")  
+    return nil, nil, nil, utils.ErrNullRepo()
+  } 
+
   base.Debug("[WorkerClient.GetOrCreateModelRepo] Model Repo for Repo: ", model_response.Repo.Name)  
   return model_response.Repo, model_response.Branch, model_response.Commit, nil
-
 }
 
 

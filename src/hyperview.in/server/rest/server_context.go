@@ -15,12 +15,14 @@ import (
 )
 
 const (
+  STORAGE_BASE_DIR = "hyperview"
   LOG_DIR = "logs"
-  DIR_SEPARATOR = "/"
+  SEP = "/"
+
 )
 
 type ServerContext struct {
-	config *ServerConfig
+	config *RunConfig
 	lock sync.RWMutex
 	statsTicker *time.Ticker
 	HTTPClient  *http.Client
@@ -33,29 +35,24 @@ type ServerContext struct {
   flowServer *flow.FlowServer
 }
 
- 
+func NewServerContext(c *RunConfig) *ServerContext{
 
-// TODO: add error logging and response
-// accessed by HTTP Handlers so needs to be thread safe 
-func NewServerContext(config *ServerConfig) *ServerContext{
+  storage_dir := STORAGE_BASE_DIR
+  log_dir := storage_dir + SEP + LOG_DIR 
 
-  dir := config.BaseDir
-  log_dir := config.BaseDir + "/" + LOG_DIR
-
-  //TODO: add config variable for storage option
-  oapi, err  := storage.NewObjectAPI(dir, 0, storage.GoogleStorage) 
+  oapi, err  := storage.NewObjectAPI(storage_dir, c.StorageOption) 
   if err != nil {
     base.Error("[NewServerContext] object API  Error: ", err)
     return nil
   }
 
-  log_api, _ := storage.NewObjectAPI(log_dir, 0, storage.GoogleStorage)
+  log_api, _ := storage.NewObjectAPI(log_dir, c.StorageOption)
   if err != nil {
     base.Error("[NewServerContext] log API  Error: ", err)
     return nil
   }
 
-  dbc, err := db.NewDatabaseContext(config.DatabaseConfig.Name, config.DatabaseConfig.User, config.DatabaseConfig.Pass) 
+  dbc, err := db.NewDatabaseContext(c.driver, c.DatabaseConfig.DbName, c.DbConfig.Dbuser, c.DbConfig.Dbpass) 
   if err != nil {
     base.Error("[NewServerContext] DB Context Error: ", err)
     return nil
@@ -70,11 +67,10 @@ func NewServerContext(config *ServerConfig) *ServerContext{
   vfs := workspace.NewVfsServer(dbc, oapi)
   tasker := tasks.NewShellTasker(dbc)
 
-  kube_namespace:= "hflow"
-  flow_server := flow.NewFlowServer(dbc, kube_namespace, oapi, ws_api)
+  flow_server := flow.NewFlowServer(dbc, oapi, ws_api)
 
   sc := &ServerContext{
-    config: config,
+    config: c,
     HTTPClient: http.DefaultClient,
     objectAPI: oapi,
     logApi: log_api,
@@ -89,9 +85,9 @@ func NewServerContext(config *ServerConfig) *ServerContext{
 
 
 func (sc *ServerContext) getBasePath() string {
-  return sc.config.BaseDir
+  return STORAGE_BASE_DIR
 }
 
 func (sc *ServerContext) getLogBasePath() string {
-  return sc.config.BaseDir + DIR_SEPARATOR + LOG_DIR
+  return STORAGE_BASE_DIR + SEP + LOG_DIR
 }

@@ -14,6 +14,6 @@ const (
 
 
 func FakeDb() (*db.DatabaseContext, error) {
-  conn, err := db.NewDatabaseContext(test_db_name, test_db_user, test_db_password)
+  conn, err := db.NewPostgresContext(test_db_name, test_db_user, test_db_password)
   return conn, err
 }

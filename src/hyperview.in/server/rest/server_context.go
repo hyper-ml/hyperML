@@ -4,21 +4,20 @@ package rest
 import (
 	"sync"
   "net/http"
-  "time"
-  "hyperview.in/server/core/tasks"
+  "time" 
   "hyperview.in/server/core/flow"
 
   "hyperview.in/server/core/storage"
   "hyperview.in/server/core/db"
   "hyperview.in/server/core/workspace"
   "hyperview.in/server/base"
+  config_pkg "hyperview.in/server/config"
 )
 
 const (
-  STORAGE_BASE_DIR = "hyperview"
-  LOG_DIR = "logs"
-  SEP = "/"
 
+  GCS = "GCS"
+  S3 = "S3"
 )
 
 type ServerContext struct {
@@ -27,67 +26,67 @@ type ServerContext struct {
 	statsTicker *time.Ticker
 	HTTPClient  *http.Client
   objectAPI storage.StorageServer
-  logApi storage.StorageServer
+  logger storage.StorageServer
   databaseContext *db.DatabaseContext
   workspaceApi workspace.ApiServer
-  vfs *workspace.VfsServer
-  tasker tasks.Tasker
+  vfs *workspace.VfsServer 
   flowServer *flow.FlowServer
 }
 
-func NewServerContext(c *RunConfig) *ServerContext{
+func setGCSVars(gc *config_pkg.GcsConfig) error {
+  if gc != nil {
+    return base.SetEnvVar("GOOGLE_APPLICATION_CREDENTIALS", gc.CredPath)
+  }
+  return nil
+}
+ 
 
-  storage_dir := STORAGE_BASE_DIR
-  log_dir := storage_dir + SEP + LOG_DIR 
+func NewServerContext(c *RunConfig) (*ServerContext, error) {
 
-  oapi, err  := storage.NewObjectAPI(storage_dir, c.StorageOption) 
+  if c.Current.StorageOption == config_pkg.GStorage {
+    if err := setGCSVars(c.Current.Gcs); err != nil {
+    return nil, err
+    }
+  }
+
+  oapi, err  := storage.NewObjectAPI(c.Current.StorageOption, c.StorageBaseDir, c.Current.S3, c.Current.Gcs) 
   if err != nil {
     base.Error("[NewServerContext] object API  Error: ", err)
-    return nil
+    return nil, err
   }
 
-  log_api, _ := storage.NewObjectAPI(log_dir, c.StorageOption)
+  logger, _ := storage.NewObjectAPI(c.Current.StorageOption, c.LogBaseDir, c.Current.S3, c.Current.Gcs)
   if err != nil {
     base.Error("[NewServerContext] log API  Error: ", err)
-    return nil
+    return nil, err
   }
-
-  dbc, err := db.NewDatabaseContext(c.driver, c.DatabaseConfig.DbName, c.DbConfig.Dbuser, c.DbConfig.Dbpass) 
+  
+  dbc, err := db.NewDatabaseContext(c.Current.DbConfig.Driver, c.Current.DbConfig.DbName, c.Current.DbConfig.Dbuser, c.Current.DbConfig.Dbpass) 
   if err != nil {
     base.Error("[NewServerContext] DB Context Error: ", err)
-    return nil
+    return nil, err
   }
 
   ws_api, err := workspace.NewApiServer(dbc, oapi)
   if err != nil {
     base.Error("[NewServerContext] Ws API Error: ", err)
-    return nil
+    return nil, err
   }
 
-  vfs := workspace.NewVfsServer(dbc, oapi)
-  tasker := tasks.NewShellTasker(dbc)
+  vfs := workspace.NewVfsServer(dbc, oapi) 
 
-  flow_server := flow.NewFlowServer(dbc, oapi, ws_api)
+  flow_server := flow.NewFlowServer(dbc, oapi, ws_api, logger)
 
   sc := &ServerContext{
     config: c,
     HTTPClient: http.DefaultClient,
     objectAPI: oapi,
-    logApi: log_api,
+    logger: logger,
     workspaceApi: ws_api,
     databaseContext: dbc,
-    vfs: vfs,
-    tasker: tasker,
+    vfs: vfs, 
     flowServer: flow_server,
   }
-  return sc
+  return sc, nil
 }
 
-
-func (sc *ServerContext) getBasePath() string {
-  return STORAGE_BASE_DIR
-}
-
-func (sc *ServerContext) getLogBasePath() string {
-  return STORAGE_BASE_DIR + SEP + LOG_DIR
-}

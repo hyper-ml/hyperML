@@ -2,7 +2,6 @@ package base
 
 
 import(
-  "os"
   "fmt"
   "runtime"
 )
@@ -10,7 +9,7 @@ import(
 
 func HomeDir() (string, error) {
   var home string
-  if runtime.GOOS = "windows" {
+  if runtime.GOOS == "windows" {
     return "TODO", nil
   } else {
     return unixHome()
@@ -19,7 +18,7 @@ func HomeDir() (string, error) {
 }
 
 
-
+// expand ~ in home directory
 func unixHome() (string, error) {
   home := GetEnv("HOME")
   if home != "" {

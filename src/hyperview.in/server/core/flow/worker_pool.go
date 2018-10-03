@@ -3,7 +3,8 @@ package flow
 import(
   tsk_pkg "hyperview.in/server/core/tasks"
   db_pkg "hyperview.in/server/core/db"
-  
+  "hyperview.in/server/core/storage"
+
 )
 
  
@@ -56,8 +57,8 @@ func NewWorkPoolWatcher() (chan WorkerEvent) {
 
 
 //TODO: add worker limits
-func NewWorkerPool(db *db_pkg.DatabaseContext) *PodKeeper {
-  return NewDefaultPodKeeper(db)
+func NewWorkerPool(db *db_pkg.DatabaseContext, logger storage.ObjectAPIServer) *PodKeeper {
+  return NewDefaultPodKeeper(db, logger)
 }
 
 

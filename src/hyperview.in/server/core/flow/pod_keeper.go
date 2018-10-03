@@ -59,17 +59,17 @@ type PodKeeper struct {
   qs *queryServer
   kubeClient *kubernetes.Clientset
   podWatcher kwatch.Interface 
-  logStorageServer storage.ObjectAPIServer
+  logger storage.ObjectAPIServer
 }
 
-func NewDefaultPodKeeper(db *db_pkg.DatabaseContext) *PodKeeper {
+func NewDefaultPodKeeper(db *db_pkg.DatabaseContext, logger storage.ObjectAPIServer) *PodKeeper {
   c, _ := GetDefaultKubeClient()
-  logStorage, _ := storage.NewObjectAPI("logs", 0, storage.GoogleStorage)
+  //logStorage, _ := storage.NewObjectAPI("logs", storage.GoogleStorage)
   queryServer:= NewQueryServer(db)
 
   return &PodKeeper {
     kubeClient: c,
-    logStorageServer: logStorage,
+    logger: logger,
     qs: queryServer,
   }
 }
@@ -593,7 +593,7 @@ func (pk *PodKeeper) SaveMessageToWorkerLog(s string, worker Worker, flow Flow) 
   r := strings.NewReader(s)
  
   //TODO: consider appending log instead of overwriting
-  obj_path, _, bytes_written, err := pk.logStorageServer.SaveObject(flow.Id + ".log", defaultFlowLogDir, r, false)
+  obj_path, _, bytes_written, err := pk.logger.SaveObject(flow.Id + ".log", defaultFlowLogDir, r, false)
 
   base.Log("[PodKeeper.SaveMessageToWorkerLog] Log written: ", obj_path, bytes_written, err)
   return nil
@@ -660,7 +660,7 @@ func (pk *PodKeeper) SavePodLog(podId, logDir, logName string) (error) {
 
   r = bytes.NewReader(body) 
   //TODO: consider appending log instead of overwriting
-  obj_path, _, bytes_written, err := pk.logStorageServer.SaveObject(log_name, log_dir, r, false)
+  obj_path, _, bytes_written, err := pk.logger.SaveObject(log_name, log_dir, r, false)
 
   base.Log("[PodKeeper.SavePodLog] Log written: ", obj_path, bytes_written, err)
 

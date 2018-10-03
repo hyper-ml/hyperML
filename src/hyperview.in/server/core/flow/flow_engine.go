@@ -10,6 +10,7 @@ import (
   //"hyperview.in/server/base/backoff"
   task_pkg "hyperview.in/server/core/tasks"
   "hyperview.in/server/base"
+  "hyperview.in/server/core/storage"
   db_pkg "hyperview.in/server/core/db"
 )
 
@@ -31,8 +32,9 @@ type flowEngine struct {
 
 }
 
-func NewFlowEngine(qs *queryServer, db *db_pkg.DatabaseContext) *flowEngine{
-  wp := NewWorkerPool(db)
+func NewFlowEngine(qs *queryServer, db *db_pkg.DatabaseContext, logger storage.ObjectAPIServer) *flowEngine{
+  
+  wp := NewWorkerPool(db, logger)
 
   return &flowEngine{
     qs: qs,

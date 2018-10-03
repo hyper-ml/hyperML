@@ -4,22 +4,19 @@ import (
   "fmt"
 
   "hyperview.in/server/base"
+  "hyperview.in/server/config"
 )
 
-// Valid object storage
-const ( 
-  GoogleStorage    = "GCS" 
-  AwsStorage       = "S3"
-)
+
 
 type StorageServer interface {
 	ObjectAPIServer
 }
 
-func NewObjectAPI(baseDir string, storageOption string) (ObjectAPIServer, error) {
+func NewObjectAPI(storageOption string, baseDir string, s3Config *config.S3Config, gConfig *config.GcsConfig) (ObjectAPIServer, error) {
   switch storageOption {
-    case GoogleStorage:
-      o, err := newGoogleStorageAPIServer(baseDir)
+    case config.GStorage:
+      o, err := newGoogleStorageAPIServer(baseDir, gConfig)
 
       if err != nil {
         base.Log("[storage.NewObjectAPI] Failed to create storage API: ", err)
@@ -31,22 +28,4 @@ func NewObjectAPI(baseDir string, storageOption string) (ObjectAPIServer, error)
   }
   return nil, fmt.Errorf("Unknown Storage Location")
 
-}
-
-func NewBucketAPI(bucket string, baseDir string, storageOption string) (ObjectAPIServer, error) {
-  switch storageOption {
-    case GoogleStorage:
-      o, err := newGoogleBucketAPIServer(bucket, baseDir)
-
-      if err != nil {
-        base.Log("[storage.NewBucketAPI] Failed to create storage API: ", err)
-        return nil, err
-      }
-
-      return o, nil
-
-  }
-  return nil, fmt.Errorf("Unknown Storage Location")
-
-
-}
+} 

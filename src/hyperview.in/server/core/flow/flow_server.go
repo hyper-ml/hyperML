@@ -24,10 +24,10 @@ type FlowServer struct {
 
 func NewFlowServer(db *db_pkg.DatabaseContext, 
   obj storage.ObjectAPIServer,
-  wsapi ws.ApiServer) *FlowServer {
+  wsapi ws.ApiServer, logger storage.ObjectAPIServer) *FlowServer {
     
   qs:= NewQueryServer(db)
-  fe:= NewFlowEngine(qs, db) 
+  fe:= NewFlowEngine(qs, db, logger) 
   
   quit:= make(chan int)
   

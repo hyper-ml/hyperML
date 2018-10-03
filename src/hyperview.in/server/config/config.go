@@ -10,6 +10,12 @@ import (
   "hyperview.in/server/base"
 )
 
+const ( 
+  GStorage    = "GCS" 
+  AwsStorage       = "S3"
+)
+
+
 const (
   ConfigPathEnvName ="HFLOW_CONFIG_PATH"
   ConfigFilePerm = 0644
@@ -18,7 +24,7 @@ const (
 
 type Config struct {
   Interface string
-  DbConfig *DbConfig
+  DB *DbConfig
   StorageOption string
   S3 *S3Config
   Gcs *GcsConfig
@@ -30,9 +36,10 @@ type Config struct {
 
 type DbConfig struct {
   Driver string // POSTGRES, ETCD
-  DbName string
-  Dbuser string
-  Dbpass string
+  Name string
+  User string
+  Pass string
+  File string
 }
 
 type S3Config struct {
@@ -48,6 +55,14 @@ type GcsConfig struct {
   Bucket string
 }
 
+func defaultConfig() *Config {
+  return &Config{
+    DbConfig: &DbConfig{},
+    S3: &S3Config{},
+    GCS: &GCSConfig{},
+  }
+}
+
 func SetConfigPath(v string) error { 
   return base.SetEnvVar(ConfigPathEnvName, v)
 }
@@ -57,31 +72,55 @@ func GetConfigPath() string  {
   path := base.GetEnvVar(ConfigPathEnvName)
   
   if path == "" {
-    path = filepath.Join(base.HomeDir(), ".hflow")
-    base.SetEnvVar(ConfigPathEnvName, path)
-    base.Log("Chooising default Config path: ", path)
+    home_dir, _ := base.HomeDir()
+    path = filepath.Join(home_dir, ".hflow")
+    if err := base.SetEnvVar(ConfigPathEnvName, path); err != nil {
+      base.Log("Failed to set config path", err)
+    }
+
+    base.Log("Choosing default Config path: ", path) 
   }
 
   return path
 }
 
 func GetConfig() (*Config, error) {
-  return readFromFile()
-}
-
-
-func readFromFile() (*Config, error) {
-  var config *Config
-
   config_path := GetConfigPath()
 
   if config_path == "" {
-    return nil, fmt.Errorf("Config path not set")
+    return nil, fmt.Errorf("Config path not found")
   }
 
-  config_json, err := ioutil.ReadFile(config_path)
+  config, err := readFromFile(config_path)
+  
   if err != nil {
-    fmt.Println("Failed to read config file at: ", config_path)
+    if os.IsNotExist(err) { 
+      fmt.Println("Config file doesnt exist. So creating a new one at: ", config_path)
+      return createConfig(config_path)
+    }
+    return nil, err
+  }
+
+  return config, err
+}
+
+func createConfig(path string) (*Config, error) {
+  default_config := defaultConfig()
+  json_config, _ := json.Marshal(default_config)
+  err := ioutil.WriteFile(path, json_config, ConfigFilePerm)
+  if err != nil {
+    base.Error("Failed to create default config file: ", err)
+    return nil, err
+  }
+  return default_config, nil
+}
+
+func readFromFile(path string) (*Config, error) {
+  var config *Config
+
+  config_json, err := ioutil.ReadFile(path)
+  if err != nil {
+    fmt.Println("Failed to read config file at: ", path)
     return nil, err
   }
 
@@ -103,8 +142,8 @@ func SetConfig(c *Config) (error) {
 
 func writeToFile(config *Config) (error) {
   config_path := GetConfigPath()
-  if config_path == "" {
-    return nil, fmt.Errorf("Config path not set")
+  if config_path == ""{
+    return fmt.Errorf("Config path not set")
   }
 
   json_config, err := json.Marshal(config)

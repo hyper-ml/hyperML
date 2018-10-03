@@ -25,10 +25,10 @@ func (h *Handler) handleGetTaskLog() error {
   base.Info("[Handler.handleGetTaskLog] task_id: ", task_id)
   
   log_path := h.server.flowServer.GetTaskLogPath(task_id)
-  log_path = h.server.logApi.GetObjectPath(log_path)
+  log_path = h.server.logger.GetObjectPath(log_path)
 
   base.Info("[Handler.handleGetTaskLog] log_path: ", log_path)
-  rs, err:= h.server.logApi.ReadSeeker(log_path, 0, 0)
+  rs, err:= h.server.logger.ReadSeeker(log_path, 0, 0)
 
   if err != nil {
     if  err != io.EOF {
@@ -62,7 +62,7 @@ func (h *Handler) handlePostTaskLog() error {
     log_path := h.server.flowServer.GetTaskLogPath(task_id)
 
     base.Info("[Handler.handlePostTaskLog] log_path: ", log_path)
-    obj_path, chksm, size, err := h.server.logApi.SaveObject(log_path, "", h.rq.Body, false)
+    obj_path, chksm, size, err := h.server.logger.SaveObject(log_path, "", h.rq.Body, false)
    
     if err != nil {
       base.Debug("[Handler.handlePostFlowLog] Error occurred writing log on server ", task_id, err)

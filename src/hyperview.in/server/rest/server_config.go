@@ -2,7 +2,7 @@ package rest
 
 import (
   "net/http"
-  "flag"
+  config_pkg "hyperview.in/server/config"
   "hyperview.in/server/base"
 )
  
@@ -12,37 +12,69 @@ var DefaultMaxIncomingConnections = 0
 var ServerReadTimeout = 200
 var ServerWriteTimeout = 200
  
+const (
+  STORAGE_BASE_DIR = "hyperview"
+  LOG_DIR = "logs"
+  SEP = "/"
+)
 
 type RunConfig struct {
-  *config.Config
-  BaseDir string
+  Current *config_pkg.Config
+  StorageBaseDir string
+  LogBaseDir string
+  StorageDirSeparator string
 }
 
-var config *RunConfig
+func NewRunConfig(c *config_pkg.Config) *RunConfig {
+  return &RunConfig {
+    Current: c,
+    StorageBaseDir: STORAGE_BASE_DIR,
+    LogBaseDir: LOG_DIR,
+    StorageDirSeparator: SEP,
+  }
+}
 
-func (config *RunConfig) Serve(addr string, Handler http.Handler) {
-  err := ListenAndServeHTTP(addr, DefaultMaxIncomingConnections, ServerReadTimeout, ServerWriteTimeout, Handler)
+var rc *RunConfig
+
+func (rc *RunConfig) Serve(Handler http.Handler) {
+  err := ListenAndServeHTTP(rc.Current.Interface, DefaultMaxIncomingConnections, ServerReadTimeout, ServerWriteTimeout, Handler)
   
   if err != nil {
-    base.Log("Failed to start HTTP Server on %s: %v", addr, err)
+    base.Log("Failed to start HTTP Server on %s: %v", rc.Current.Interface, err)
   }
 }
   
 func StartServer(addr string) {
-  c, err := config.GetConfig()
+  c, err := config_pkg.GetConfig()
   if err != nil {
     panic(err)
   }
   
-  c.Interface = addr
-  runServer(c)  
+  switch {
+  case addr != "":
+    c.Interface = addr
+  case c.Interface == "":
+    c.Interface = DefaultInterface
+  } 
+
+  rc := NewRunConfig(c) 
+  runServer(rc)  
 }
 
+//todo
+func raisePanic(err error) {
+  panic(err)
+}
 
-func runServer(config *RunConfig) {
-  sc := NewServerContext(config)
-  base.Info("Starting server on %s ...", *config.Interface)
-  config.Serve(*config.Interface, CreatePublicHandler(sc))
+func runServer(rc *RunConfig) {
+  sc, err := NewServerContext(rc)
+  
+  if err != nil {
+    raisePanic(err)
+  }
+
+  base.Info("Starting server on %s ...", rc.Current.Interface)
+  rc.Serve(CreatePublicHandler(sc))
 }
 
   

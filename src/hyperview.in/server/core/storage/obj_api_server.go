@@ -9,9 +9,9 @@ import (
   "path/filepath"
   "golang.org/x/net/context"
 
-  "github.com/golang/groupcache"
   "hyperview.in/server/core/utils"
   "hyperview.in/server/base"
+  "hyperview.in/server/config"
 )
 
 var (
@@ -57,14 +57,17 @@ func newObjectAPIServer(dir string, client Client) (*objAPIServer, error){
   return o, nil
 }
 
-func newGoogleStorageAPIServer(dir string) (*objAPIServer, error) {
-	bucket := base.GetEnv("GOOGLE_STORAGE_BUCKET")
+func newGoogleStorageAPIServer(dir string, c *config.GcsConfig) (*objAPIServer, error) {
+
+  if c == nil {
+    return nil, fmt.Errorf("Empty GCS config")
+  }
   
-  if bucket == "" {
-    return nil, fmt.Errorf("Set GOOGLE_STORAGE_BUCKET variable to use google storage option")
+  if c.Bucket == "" {
+    return nil, fmt.Errorf("GCS bucket not found in config: ", c)
   }
 
-	storageClient, err := NewGoogleClient(context.Background(), bucket)
+	storageClient, err := NewGoogleClient(context.Background(), c.Bucket)
 	
   if err != nil {
     fmt.Println("Error occured creating google client:", err)
@@ -74,21 +77,6 @@ func newGoogleStorageAPIServer(dir string) (*objAPIServer, error) {
 	return newObjectAPIServer(dir, storageClient)
 }
 
-func newGoogleBucketAPIServer(bucket string, dir string) (*objAPIServer, error) {
-  
-  if bucket == "" {
-    return nil, fmt.Errorf("Set GOOGLE_STORAGE_BUCKET variable to use google storage option")
-  }
-
-  storageClient, err := NewGoogleClient(context.Background(), bucket)
-  
-  if err != nil {
-    fmt.Println("Error occured creating google client:", err)
-    return nil, err
-  }
-
-  return newObjectAPIServer(dir, storageClient)
-}
 
 func (s *objAPIServer) BasePath() string {
   return s.dir

@@ -34,24 +34,24 @@ $ cd /home/data  <br />
 > hflow init my_dataset  <br />
 > hflow push <br />
 
-##### submit training task   
+##### 3. submit training task   
 $ cd my_repo <br />
 $ hflow run "python my_training_program.py"  --data my_dataset <br />
 > Flow Id: erwed43i5jin5423423d <br />
 
-##### monitor status 
+##### 4. monitor status 
 $ hflow status  <br />
 > Flow Id: erwed43i5jin5423423d <br />
 > Status: RUNNING <br />
 
-##### view execution log 
+##### 5. view execution log 
 $ hflow log <br />
 
-##### download saved model (optional)
+##### 6. download saved model (optional)
 $ hflow pull saved_models <br />
 > Model files downloaded to ./saved_models
 
-##### download results or output files (optional)
+##### 7. download results or output files (optional)
 $ hflow pull results  <br />
 > Results downloaded in ./results <br />
 

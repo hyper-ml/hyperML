@@ -26,33 +26,33 @@ https://hyperflow.in/docs/introduction
 A typical workflow with hflow will look like: 
 
 ##### 1. Initiate repo
-$ hflow init my_repo <br />
-> Repo my_repo initiated
+  $ hflow init my_repo <br />
+  > Repo my_repo initiated
 
 ##### 2. upload dataset (optional) 
-$ cd /home/data  <br />
-> hflow init my_dataset  <br />
-> hflow push <br />
+  $ cd /home/data  <br />
+  > hflow init my_dataset  <br />
+  > hflow push <br />
 
 ##### 3. submit training task   
-$ cd my_repo <br />
-$ hflow run "python my_training_program.py"  --data my_dataset <br />
-> Flow Id: erwed43i5jin5423423d <br />
+  $ cd my_repo <br />
+  $ hflow run "python my_training_program.py"  --data my_dataset <br />
+  > Flow Id: erwed43i5jin5423423d <br />
 
 ##### 4. monitor status 
-$ hflow status  <br />
-> Flow Id: erwed43i5jin5423423d <br />
-> Status: RUNNING <br />
+  $ hflow status  <br />
+  > Flow Id: erwed43i5jin5423423d <br />
+  > Status: RUNNING <br />
 
 ##### 5. view execution log 
-$ hflow log <br />
+  $ hflow log <br />
 
 ##### 6. download saved model (optional)
-$ hflow pull saved_models <br />
-> Model files downloaded to ./saved_models
+  $ hflow pull saved_models <br />
+  > Model files downloaded to ./saved_models
 
 ##### 7. download results or output files (optional)
-$ hflow pull results  <br />
-> Results downloaded in ./results <br />
+  $ hflow pull results  <br />
+  > Results downloaded in ./results <br />
 
 

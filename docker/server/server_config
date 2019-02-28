@@ -1,0 +1,1 @@
+{"Interface":"","DB":{"Driver":"BOLT","Name":"hflow_db","User":"","Pass":"","File":"", "DataPath": "/var/tmp/hflow_db.db"},"StorageOption":"GCS","S3":{"CredPath":"","AccessKey":"","SecretKey":"","Bucket":"hyperview001"},"Gcs":{"CredPath":"/home/hflow/.hflow/gcs.json","Bucket":"hyperview001"},"LogLevel":"5","LogPath":"/var/tmp/hflow1.log"}

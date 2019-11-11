@@ -23,5 +23,5 @@ The project is in alpha stage but if you are keen to try out do write us at beek
 https://hyperflow.in/docs/introduction
 
 ### Example
-![Alt Text](https://media.giphy.com/media/1wmxDTzzaq79NcCPBC/giphy.gif)
+![Alt Text](https://media.giphy.com/media/PmMCdFqtCLt5FKD39L/giphy.gif)
 

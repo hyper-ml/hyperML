@@ -3,9 +3,8 @@
 
 You can use the current version of hflow just keeping track of model-experiment cycle or also utilize containerized (docker) training and automated version control when deployed with kubernetes.
 
-The project is in alpha stage but if you are keen to try out do write us at beekeepr@hyperflow.cc
-
-![Alt Text](http://www.animatedgif.net/underconstruction/cns01_e0.gif)
+The project is used by large data centers in Asia. if you are keen to try out do write us at beekeepr@hyperflow.cc
+We are releasing more documentaion around setup/configuration soon. 
 
 ### Key Features:
 

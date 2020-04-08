@@ -16,7 +16,7 @@ hyperML uses kubernetes to re-create python environments, launch or schedule not
 ## Requirements
 * Kubernetes (minikube, on-premise, AWS EKS or GKE or any public cloud) 
 
-## Installation
+## Getting Started
 Follow steps [here](https://www.hyperml.com/docs/prerequisites)
 
 ## User flow:
@@ -27,8 +27,12 @@ Follow steps [here](https://www.hyperml.com/docs/prerequisites)
 
 
 ## Documentation
-https://www.hyperml.com/docs/introduction
+Please follow [this](https://www.hyperml.com/docs/introduction) link
 
-## 
+## Problems?
+If you have a problem, please raise an issue. We will get back in 2-3 working days.
+
+## Author
+Amol Umbarkar (amol@hyperml.com)
 
 

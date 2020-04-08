@@ -1,26 +1,34 @@
+# hyperML
+Radically simple, efficient platform for data science teams and Individuals. 
 
-**hyperflow** is a Machine learning platform for growing teams. The platform adds reusuability and scalability to your machine learning stack. It does by componentizing model development and executing training tasks inside containers.
+hyperML uses kubernetes to re-create python environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
 
-You can use the current version of hflow just keeping track of model-experiment cycle or also utilize containerized (docker) training and automated version control when deployed with kubernetes.
+[See demo](https://www.hyperml.com/demo.mp4)
 
-The project is used by large data centers in Asia. if you are keen to try out do write us at beekeepr@hyperflow.cc
-We are releasing more documentaion around setup/configuration soon. 
+## Problems solved
+* Ease of use (follows general dialect of data science)
+* Abstracts infrastructure from data scientists and ML engineers leting them focus more on science
+* Scale ML experiments by effortlessly launching new notebooks or scheduling them to run in background
+* Share infrastructure resources especially when there is shortage of it 
+* Hassle free environments through container images
 
-### Key Features:
 
-* Reduced experimentation time: Componentization and parallel training on cloud to optimise time to experiment. Don't spend weeks to experiment when you can finish in days.
-* Ease-of-use: Launch tasks (e.g training, data processing) with a single command
-* Version control: Code, data and model versioning for reproducibility
-* Track experiments: Keep track of experiment results with versions. Whether you are tuning hyperparameters, or trying out variants of a model, with hyperflow you don't need to queue up training jobs on your personal system.
-* Deploy on premise or on private cloud
-* Team Collaboration: Clone repos to share work with team members, share datasets, resources and Infrastructure
-* Documentation: Write documentation around repo, model or dataset usage
-* Framework Support: Tensorflow, Keras, pytorch out of box. You can add your own as a docker image
-* GPU Support
+## Requirements
+* Kubernetes (minikube, on-premise, AWS EKS or GKE or any public cloud) 
 
-### Documentation
-https://hyperflow.in/docs/introduction
+## Installation
+Follow steps [here](https://www.hyperml.com/docs/prerequisites)
 
-### Example
-![Alt Text](https://media.giphy.com/media/PmMCdFqtCLt5FKD39L/giphy.gif)
+## User flow:
+* Run or Schedule **Notebooks to run in the background** right from the comform of jupyter labs  
+* **Launch notebooks** on click of a button  
+* Install **locally** or on remote server (VM) or as a container inside kubernetes
+* Simple CLI to run Python code bundles inside containers on kubernetes 
+
+
+## Documentation
+https://www.hyperml.com/docs/introduction
+
+## 
+
 

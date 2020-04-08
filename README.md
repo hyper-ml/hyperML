@@ -33,6 +33,6 @@ Please follow [this](https://www.hyperml.com/docs/introduction) link
 If you have a problem, please raise an issue. We will get back in 2-3 working days.
 
 ## Author
-Amol Umbarkar (amol@hyperml.com)
+Amol Umbarkar (amol@hyperml.com / [twitter](https://twitter.com/_4mol))
 
 

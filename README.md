@@ -1,7 +1,7 @@
 # hyperML
 Radically simple, efficient platform for data science teams and Individuals. 
 
-hyperML uses kubernetes to re-create python environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
+hyperML works with kubernetes to re-create python environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
 
 [See demo](https://www.hyperml.com/demo.mp4)
 

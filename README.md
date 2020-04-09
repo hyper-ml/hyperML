@@ -35,7 +35,7 @@ A host of quick start guides are available on hyperML [website](https://www.hype
 A comprehensive documentation is available [here](https://www.hyperml.com/docs/introduction) link
 
 ## Problems?
-If you have a problem, please raise an issue. We will get back in 2-3 working days.
+If you have a problem, please raise an issue. 
 
 ## Author
 Amol Umbarkar (amol@hyperml.com / [twitter](https://twitter.com/_4mol))

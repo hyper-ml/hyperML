@@ -17,8 +17,16 @@ hyperML works with the help of kubernetes to reusable environments, launch or sc
 * Kubernetes (minikube, on-premise, AWS EKS or GKE or any public cloud) 
 
 ## Getting Started
-A host of quick start guides are available on hyperML [website](https://www.hyperml.com/docs/prerequisites)
-* [Standalone binary install](https://www.hyperml.com/docs/standalone)
+Install standalone binary 
+
+```
+curl -LO curl http://storage.googleapis.com/hyperml/releases/0.9.0/hyperml /usr/local/bin/hyperml
+```
+
+You can also install hyperML as lambada function to optimize server costs.
+
+A host of quick start configuration guides are available on hyperML [website](https://www.hyperml.com/docs/prerequisites)
+* [Local install](https://www.hyperml.com/docs/standalone)
 * [Minikube Install](https://www.hyperml.com/docs/minikube)
 * [Kubernetes Install](https://www.hyperml.com/docs/kubernetes)
 * [AWS EKS](https://www.hyperml.com/docs/aws-eks)

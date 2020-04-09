@@ -1,7 +1,7 @@
 # hyperML
-Radically simple, efficient platform that gets most of out Cloud Infrastrcuture for data science teams and Individuals. 
+Radically simple, efficient platform to improve lead time of data science projects. It does so by extending your local environment with on-demand cloud resources without having to leave your IDE (jupyter labs at the moment).
 
-hyperML works with kubernetes to re-create python environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
+hyperML works with the help of kubernetes to reusable environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
 
 [See demo](https://www.hyperml.com/demo.mp4)
 

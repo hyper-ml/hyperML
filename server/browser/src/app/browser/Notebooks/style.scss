@@ -1,0 +1,67 @@
+.nb-list {
+    height: 80vh; 
+}
+
+.nb-list-row {
+    border-top: 0;
+    border-bottom: 1px solid #303030;
+
+    &:first-child {
+        border-top: 1px solid #303030;
+    }  
+    td {
+        button {
+            font-size: 0.8em;
+        }
+        border-top: 0;  
+    }
+}
+
+.new-notebook {
+    margin-top: 2em;
+    margin-bottom: 15em;
+    padding: 3em 3em 3em 3em;
+    border: 1px solid #ddd;
+    border-radius: 2px;
+    
+    &.dark {
+        background: #303030;
+        border: 1px solid #444;
+    }
+
+    .new-nb-rprof-select {
+        margin-top: 2em;
+    }
+
+    .new-notebook-actions {
+        button {
+            margin-right: 1em;
+        }
+    }
+}
+
+.new-nb-rprofs {
+    margin-top: 0.5em;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+
+    div {
+        margin-right: 1em;
+        margin-bottom: 1em;
+    }
+}
+
+.create-nb-toolbar {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    button {
+        font-size: 0.9em;
+    }
+}
+
+.new-nb-form-label {
+    color: #5f6368; 
+    margin-bottom: 0.5em;
+}
+

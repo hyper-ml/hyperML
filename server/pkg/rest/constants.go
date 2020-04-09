@@ -1,0 +1,5 @@
+package rest
+
+const (
+	nullString = ""
+)

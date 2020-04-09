@@ -1,0 +1,19 @@
+body {
+    color: rgba(256, 256, 256, 0.8);
+
+}
+
+
+td {
+    .btn {
+        &.btn-outline{
+            color: #aaa;
+            border-color: #777;
+        }
+        &.btn-outline2{
+            color: #678;
+            border-color: #555;
+        }
+    }
+}
+

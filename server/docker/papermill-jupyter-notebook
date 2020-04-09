@@ -1,0 +1,9 @@
+# docker build -t papaermill-jupyter-notebook - < papermill-jupyter-notebook
+FROM jupyter/minimal-notebook:latest
+
+LABEL maintainer hyperML <amol@hyperml.com>
+
+
+RUN pip install papermill
+
+

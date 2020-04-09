@@ -1,0 +1,26 @@
+.login {
+    height: 100%;
+}
+
+.login-form {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate( -50% , -50%);
+    width: 25em;
+    display: flex;
+    flex-direction: column;
+
+    h4 {
+        text-align: center;
+        
+    }
+    
+    .login-submit{
+        text-align: center;
+        button {
+            min-width: 12em;
+        }  
+    }
+}
+

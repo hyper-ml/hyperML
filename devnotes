@@ -1,0 +1,60 @@
+start Minikube on mac:
+minikube start --logtostderr --v=3 --vm-driver=hyperkit
+
+-- enable ingress -- 
+minikube addons enable ingress
+
+
+
+-- CURL -- 
+
+Signup
+curl --data '{"username":"mindhash", "password":"saveme123"}' -X POST http://localhost:8888/signup
+
+Login
+curl --data '{"username":"mindhash", "password":"saveme123"}' -X POST http://localhost:8888/login
+
+
+Add ResourceProfile
+curl --data '{"Name" : "CPU2", "CPU": 2}' -X POST http://localhost:8888/resources/profiles
+
+curl --data '{"Name" : "V100.C8.M64", "GPU": 1, "GPURam": 34359720775, "CPU": 8, "RAM": 68719441551, "Subtitle": "GPU enabled Plan", "ShortDesc": "This resource plan supports V100 GPU (32GB), 8 CPUs and 64GB DDRM Memory."}' -X POST http://localhost:8888/resources/profiles
+curl --data '{"Name" : "V100.C4.M16", "GPU": 1, "GPURam": 34359720775, "CPU": 4, "RAM": 17179860387, "Subtitle": "GPU enabled Plan", "ShortDesc": "This resource plan supports V100 GPU (32GB), 4 CPUs and 16GB DDRM Memory."}' -X POST http://localhost:8888/resources/profiles
+curl --data '{"Name" : "C16.M128", "GPU": 1, "GPURam": 34359720775, "CPU": 16, "RAM": 137438883103, "Subtitle": "CPU compute Plan", "ShortDesc": "This resource plan supports 16 CPUs and 128GB DDRM Memory."}' -X POST http://localhost:8888/resources/profiles
+
+curl --data '{"Name" : "Unlimited", "GPU": "", "GPURam": "", "CPU": "", "RAM": "", "Subtitle": "Unlimited Resource Plan", "ShortDesc": "This resource plan expands resources as per demand."}' -X POST http://localhost:8888/resources/profiles
+
+
+List ResourceProfile
+curl -X GET http://localhost:8888/resources/profiles
+
+Add Container Image
+curl --data '{"Name": "jupyter/minimal-notebook", "DescText":"Jupyter Minimal Notebook"}' -X POST http://localhost:8888/resources/containerimages
+
+List Container Images
+curl -X GET http://localhost:8888/resources/containerimages
+
+
+
+
+Add Notebook 
+
+curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7Ik5hbWUiOiJtaW5kaGFzaCJ9LCJpc3MiOiJoeXBlcmZsb3cifQ.EHXonVm1diWWEaL8oV8iHBHYLghukdl4sBsBL97Qnm8' --data '{"ResourceProfileID": 6, "ContainerImageID":6}' -X POST http://localhost:8888/user/notebooks/new
+
+List notebooks:
+curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7Ik5hbWUiOiJtaW5kaGFzaCJ9LCJpc3MiOiJoeXBlcmZsb3cifQ.EHXonVm1diWWEaL8oV8iHBHYLghukdl4sBsBL97Qnm8' -X GET http://localhost:8888/user/notebooks
+
+-- Req -- 
+Define Project And Enforce Quota
+Assign user to Project
+
+
+URLS:
+http://hyperml.com/J-uyXFPGJainQGIKS5ptkQ==/lab?token=
+
+http://hyperml.com/J-uyXFPGJainQGIKS5ptkQ==/tree?token=
+
+-- Run Background Notebook
+
+curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7Ik5hbWUiOiJtaW5kaGFzaCJ9LCJpc3MiOiJoeXBlcmZsb3cifQ.EHXonVm1diWWEaL8oV8iHBHYLghukdl4sBsBL97Qnm8' --data '{"ResourceProfileID": 7, "ContainerImageID":3}' -X POST http://localhost:8888/user/notebooks/bck/new
+

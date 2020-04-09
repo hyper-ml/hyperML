@@ -21,7 +21,7 @@ A host of quick start guides are available on hyperML [website](https://www.hype
 * [Standalone binary install](https://www.hyperml.com/docs/standalone)
 * [Minikube Install](https://www.hyperml.com/docs/minikube)
 * [Kubernetes Install](https://www.hyperml.com/docs/kubernetes)
-* [AWS EKS]((https://www.hyperml.com/docs/aws-eks)
+* [AWS EKS](https://www.hyperml.com/docs/aws-eks)
 * [GCP GKE](https://www.hyperml.com/docs/gcp-gke)
 
 ## User flow:

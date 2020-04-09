@@ -8,7 +8,7 @@ hyperML works on top of kubernetes to provide reusable environments, launch or s
 ## Problems solved
 * Ease of use (follows general dialect of data science)
 * Abstracts infrastructure from data scientists and ML engineers leting them focus more on science
-* Extending your local environment with on-demand cloud resources without having to leave your favourite IDE (jupyter labs at the moment but VS code extension is planned).
+* Extend your local environment with on-demand cloud resources without having to leave your favourite IDE (jupyter labs at the moment but VS code extension is planned).
 * Scale ML experiments by effortlessly launching new notebooks or scheduling them to run in background
 * Share infrastructure resources especially when there is shortage of it 
 * Hassle free environments through container images

@@ -17,7 +17,12 @@ hyperML works with the help of kubernetes to reusable environments, launch or sc
 * Kubernetes (minikube, on-premise, AWS EKS or GKE or any public cloud) 
 
 ## Getting Started
-Follow steps [here](https://www.hyperml.com/docs/prerequisites)
+A host of quick start guides are available on hyperML [website](https://www.hyperml.com/docs/prerequisites)
+* [Standalone binary install](https://www.hyperml.com/docs/standalone)
+* [Minikube Install](https://www.hyperml.com/docs/minikube)
+* [Kubernetes Install](https://www.hyperml.com/docs/kubernetes)
+* [AWS EKS]((https://www.hyperml.com/docs/aws-eks)
+* [GCP GKE](https://www.hyperml.com/docs/gcp-gke)
 
 ## User flow:
 * Run or Schedule **Notebooks to run in the background** right from the comform of jupyter labs  
@@ -27,7 +32,7 @@ Follow steps [here](https://www.hyperml.com/docs/prerequisites)
 
 
 ## Documentation
-Please follow [this](https://www.hyperml.com/docs/introduction) link
+A comprehensive documentation is available [here](https://www.hyperml.com/docs/introduction) link
 
 ## Problems?
 If you have a problem, please raise an issue. We will get back in 2-3 working days.

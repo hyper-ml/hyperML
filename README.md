@@ -4,9 +4,9 @@ Radically simple, efficient platform to abstract infrastructure complexities fro
 hyperML works on top of kubernetes to provide reusable environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
 
 Demo Links: 
-+ [Launch Notebook](https://www.hyperml.com/demo.mp4)  
-+ [CLI](https://www.hyperml.com/hflow.gif)  
-+ [Schedule Notebooks from Jupyter Labs](https://hyperml.com/schedule-notebook.gif)  
++ [Launch Notebook](https://wizardly-davinci-f7fc85.netlify.com/demo.mp4)  
++ [CLI](https://wizardly-davinci-f7fc85.netlify.com/hflow.gif)  
++ [Schedule Notebooks from Jupyter Labs](https://wizardly-davinci-f7fc85.netlify.com/schedule-notebook.gif)  
 
 ## Problems solved
 * Ease of use (follows general dialect of data science)

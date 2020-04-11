@@ -1,5 +1,5 @@
 # hyperML
-Radically simple, efficient platform to abstract infrastructure complexities from data scientists and ML engineers. 
+Radically simple, efficient platform to abstract infrastructure complexities from data scientists and ML engineers. The goal of the project is to integrate your favourite IDE (Jupyter, VS Code) with cloud services in the backend. 
 
 hyperML works on top of kubernetes to provide reusable environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
 

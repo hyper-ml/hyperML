@@ -1,9 +1,12 @@
 # hyperML
-Radically simple, efficient platform to abstract infrastructure complexities from data scientists and ML engineers. 
+Radically simple, efficient platform to abstract infrastructure complexities from data scientists and ML engineers. The goal of the project is to integrate your favourite IDE (Jupyter, VS Code) with cloud services in the backend. 
 
 hyperML works on top of kubernetes to provide reusable environments, launch or schedule notebooks and python jobs. If you are sharing resources then you can queue up requests as well.
 
-[See demo](https://www.hyperml.com/demo.mp4)
+Demo Links: 
++ [Launch Notebook](https://wizardly-davinci-f7fc85.netlify.com/demo.mp4)  
++ [CLI](https://wizardly-davinci-f7fc85.netlify.com/hflow.gif)  
++ [Schedule Notebooks from Jupyter Labs](https://wizardly-davinci-f7fc85.netlify.com/schedule-notebook.gif)  
 
 ## Problems solved
 * Ease of use (follows general dialect of data science)
@@ -44,9 +47,12 @@ A host of quick start configuration guides are available on hyperML [website](ht
 A comprehensive documentation is available [here](https://www.hyperml.com/docs/introduction) link
 
 ## Problems?
-If you have a problem, please raise an issue. 
+If you have a question or are looking for guidance, we recommend opening an issue so a member of the community can help!
 
 ## Author
-Amol Umbarkar (amol@hyperml.com / [twitter](https://twitter.com/_4mol))
+Amol Umbarkar (email: amol@hyperml.com / [twitter](https://twitter.com/_4mol))
+
+
+
 
 

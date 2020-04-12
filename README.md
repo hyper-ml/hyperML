@@ -47,9 +47,12 @@ A host of quick start configuration guides are available on hyperML [website](ht
 A comprehensive documentation is available [here](https://www.hyperml.com/docs/introduction) link
 
 ## Problems?
-If you have a problem, please raise an issue. 
+If you have a question or are looking for guidance, we recommend opening an issue so a member of the community can help!
 
 ## Author
-Amol Umbarkar (amol@hyperml.com / [twitter](https://twitter.com/_4mol))
+Amol Umbarkar (email: amol@hyperml.com / [twitter](https://twitter.com/_4mol))
+
+
+
 
 

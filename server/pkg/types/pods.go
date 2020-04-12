@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"github.com/hyper-ml/hyperml/server/pkg/base"
 	"path/filepath"
 	"strings"
@@ -326,14 +325,11 @@ func (p *POD) Terminate() {
 
 // SetRequestMode : Sets POD request Mode
 func (p *POD) SetRequestMode(m PodRequestMode) {
-	fmt.Println("p:", p)
-	fmt.Println("m:", m)
 	p.RequestMode = m
 }
 
 // SetStatus :
 func (p *POD) SetStatus(s PodStatus, err error) {
-	fmt.Println("SetStatus:", s, err)
 	p.Updated = time.Now()
 
 	if err != nil {
@@ -372,7 +368,6 @@ func (p *POD) SetStatus(s PodStatus, err error) {
 		p.Status = s
 	case PodReqScheduled:
 		p.Phase = PhaseScheduled
-		fmt.Println("phase scheduled:", s)
 		p.Status = s
 	default:
 		base.Warn("Unhandled status: ", s)

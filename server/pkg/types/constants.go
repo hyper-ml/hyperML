@@ -1,9 +1,12 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
-	nullString     = ""
+	nullString = ""
+	// OutPathPostfix : Output path post fix for notebook jobs
 	OutPathPostfix = "_out"
 )
 

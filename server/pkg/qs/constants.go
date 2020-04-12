@@ -1,6 +1,7 @@
 package qs
 
 const (
+	nullString = ""
 	// ResourceGroupPrefix : DB Prefix
 	ResourceGroupPrefix = "ResourceGroup:"
 

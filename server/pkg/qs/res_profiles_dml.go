@@ -24,8 +24,6 @@ func (qs *QueryServer) InsertResourceProfile(rp *types.ResourceProfile) (*types.
 	rpKey := resProfileIDToKey(rpSeq)
 	rp.ID = rpSeq
 
-	fmt.Println("rpKey:", rpKey)
-
 	err = qs.Insert(rpKey, rp)
 	if err != nil {
 		return nil, err

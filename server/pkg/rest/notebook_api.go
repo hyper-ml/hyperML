@@ -2,7 +2,6 @@ package rest
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/hyper-ml/hyperml/server/pkg/base"
 	"github.com/hyper-ml/hyperml/server/pkg/types"
 	"io/ioutil"
@@ -116,13 +115,11 @@ func serveUserUpdates(sc *ServerContext, w http.ResponseWriter, req *http.Reques
 	for {
 		select {
 		case event, ok := <-events:
-			fmt.Println("Received a new POD event:", event)
 			if !ok {
-				fmt.Println("Event Channel failed")
+				base.Error("Event Channel failed")
 				return nil
 			}
 
-			fmt.Println("received an event:", event)
 			pod, ok := event.(*types.POD)
 
 			if !ok {
@@ -133,7 +130,7 @@ func serveUserUpdates(sc *ServerContext, w http.ResponseWriter, req *http.Reques
 				c.WriteJSON(nbInfo)
 			}
 
-			fmt.Println("received an updated on POD:", pod)
+			base.Log("received an updated on POD:", pod)
 		case _ = <-quit:
 			return nil
 		default:
@@ -205,7 +202,6 @@ func (h *Handler) handleStopNotebook() error {
 
 	nbInstance, err := h.server.usrReq.StopNotebook(sessionUser, nbid)
 	if err != nil {
-		fmt.Println("Failed to stop Notebook:", err)
 		return err
 	}
 

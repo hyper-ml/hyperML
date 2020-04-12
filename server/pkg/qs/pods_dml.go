@@ -3,6 +3,7 @@ package qs
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hyper-ml/hyperml/server/pkg/base"
 	"github.com/hyper-ml/hyperml/server/pkg/types"
 	"strconv"
 	"strings"
@@ -137,8 +138,8 @@ func (qs *QueryServer) GetPODByUser(user *types.User, id uint64) (*types.POD, er
 	indexKey := userPodIndexKey(user.Name, id)
 
 	if !qs.KeyExists(indexKey) {
-		fmt.Println("User does not own the pod and key:", indexKey)
-		//	return nil, fmt.Errorf("User does not have permission to delete this pod")
+		base.Warn("User does not own the pod and key:", indexKey)
+		return nil, fmt.Errorf("User does not have permission on this pod")
 	}
 
 	pod, err := qs.GetPOD(id)
@@ -151,7 +152,7 @@ func (qs *QueryServer) GetPODByUser(user *types.User, id uint64) (*types.POD, er
 
 }
 
-// ListPODsByUser :
+// ListPODsByUser : List PODs by User
 func (qs *QueryServer) ListPODsByUser(user *types.User) (pods []*types.POD, fnerr error) {
 
 	prefix := UserPodKeyPrefix + user.Name + ":"

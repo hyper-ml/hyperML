@@ -19,6 +19,8 @@ type DatabaseContext interface {
 	GetSequence(kind string, cache uint64) (uint64, error)
 	Get(key string) ([]byte, error)
 	Insert(key string, value interface{}) error
+	InsertIndex(key string) error
+
 	InsertAndTrack(key string, value interface{}, templates ...interface{}) error
 	Update(key string, value interface{}) error
 	UpdateAndTrack(key string, value interface{}, templates ...interface{}) error

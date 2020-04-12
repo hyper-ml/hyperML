@@ -1,7 +1,6 @@
 package rest
 
 import (
-	"fmt"
 	"github.com/hyper-ml/hyperml/server/pkg/base"
 	"github.com/hyper-ml/hyperml/server/pkg/base/structs"
 	"net/http"
@@ -54,7 +53,6 @@ func (h *Handler) handleGetBranchAttrs() error {
 		return err
 	}
 
-	fmt.Println("response on handleGetRepoAttrs: ", response)
 	h.writeJSON(response)
 
 	return nil

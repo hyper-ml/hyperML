@@ -73,18 +73,42 @@ func newHandler(server *ServerContext, privs HandlerPrivs, response http.Respons
 		uid:       atomic.AddUint64(&lastUID, 1),
 	}
 
+	var user *types.User
+	var userAttrs *types.UserAttrs
+	var err error
+
 	jwt := handler.getAuthToken()
 
 	if jwt != "" {
 		jwt = strings.TrimPrefix(jwt, "Bearer ")
-		user, err := auth.VerifyToken(jwt)
+		user, err = auth.VerifyToken(jwt)
 		if user == nil || err != nil {
-			return nil, base.HTTPErrorf(http.StatusBadRequest, "Jwt is invalid. Unauthorised User")
+			return nil, base.HTTPErrorf(http.StatusUnauthorized, "Unauthorised User")
 		}
 
-		handler.session = &types.Session{
-			User: user,
+	} else {
+
+		apiKey := handler.getAPIKey()
+		if apiKey != nullString {
+			userAttrs, err = server.authAPI.GetUserByAPIKey(apiKey)
+			if userAttrs == nil || err != nil {
+				return nil, base.HTTPErrorf(http.StatusUnauthorized, "API user is invalid")
+			}
+			user = userAttrs.User
 		}
+	}
+
+	if user == nil {
+		if server.authAPI.IsAuthEnabled() {
+			return nil, base.HTTPErrorf(http.StatusUnauthorized, "User Unauthorized")
+		}
+
+		userAttrs, _ = server.authAPI.GetGuestUser()
+		user = userAttrs.User
+	}
+
+	handler.session = &types.Session{
+		User: user,
 	}
 
 	return handler, nil
@@ -183,6 +207,10 @@ func (h *Handler) getMandatoryURLParam(pname string) (string, error) {
 
 func (h *Handler) getAuthToken() string {
 	return h.rq.Header.Get("Authorization")
+}
+
+func (h *Handler) getAPIKey() string {
+	return h.rq.Header.Get("api-key")
 }
 
 func (h *Handler) requestAccepts(mimetype string) bool {

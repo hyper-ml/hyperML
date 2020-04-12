@@ -7,12 +7,8 @@ import (
 
 // ProcessNotebookRequest : creates a new POD for jupyter LAB
 func (r *RequestHandler) ProcessNotebookRequest(user *types.User, resourceProfileID, containerImageID uint64) (*types.POD, error) {
-	// TODO : get it from config
-	//cmd := "jupyter notebook --no-browser --port={port} --ip={ip}  --NotebookApp.port_retries=0 --NotebookApp.disable_check_xsrf=True" // "--NotebookApp.token=abc"
-	//tokenMap := strings.NewReplacer("{port}", LabInternalPort, "{ip}", LabInternalIP)
-	//cmd = tokenMap.Replace(cmd)
+
 	cmd := r.conf.Notebooks.GetCommand()
-	fmt.Println(cmd)
 	return r.processRequest(user, types.Notebook, cmd, resourceProfileID, containerImageID, nil)
 }
 
@@ -27,16 +23,13 @@ func (r *RequestHandler) StopNotebook(user *types.User, podID uint64) (*types.PO
 	if pod == nil {
 		return pod, fmt.Errorf("User does not have sufficient privileges to stop this notebook")
 	}
-	fmt.Println("pod:", pod)
 
 	// Initiate termination status on POD
 	pod.Terminate()
-	fmt.Println("post terminate:", pod)
 	pod, err = r.uds.UpdateUserPOD(pod)
 	if err != nil {
 		return pod, err
 	}
-	fmt.Println("After updating user POD ")
 	err = r.pk.CleanupPOD(pod.PodType, pod.RequestMode, pod.ID)
 	if err != nil {
 		return pod, err

@@ -3,7 +3,7 @@ import storage from 'local-storage-fallback'
 
 const makeSocket = (ws, callback) => {
     if (!ws || ws.readyState === WebSocket.CLOSED) {
-        ws = new WebSocket("ws://localhost:8888/user/websocket");
+        ws = new WebSocket("ws://${window.location.host}/user/websocket");
  
         ws.onopen = () => {
             console.log('websocket connected');

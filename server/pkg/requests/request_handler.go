@@ -11,7 +11,7 @@ import (
 
 // RequestHandler : Handle user requests
 type RequestHandler struct {
-	uds       *UserDataStore
+	uds       *qs.QueryServer
 	conf      *config.Config
 	pk        *pods.Keeper
 	scheduler *schedules.NotebookScheduler
@@ -19,9 +19,8 @@ type RequestHandler struct {
 
 // NewRequestHandler :
 func NewRequestHandler(cqs *qs.QueryServer, conf *config.Config, pk *pods.Keeper, scheduler *schedules.NotebookScheduler) *RequestHandler {
-	uds := NewUserDataStore(cqs)
 	return &RequestHandler{
-		uds:       uds,
+		uds:       cqs,
 		conf:      conf,
 		pk:        pk,
 		scheduler: scheduler,
@@ -33,7 +32,7 @@ func (r *RequestHandler) GetOrCreateUserDisk(user *types.User, diskname, diskHos
 
 	// get user persistent disk if exists
 	pDisk, err := r.uds.GetUserDisk(user.Name, diskname)
-	if IsUserDiskDoesntExist(err) {
+	if qs.IsUserDiskDoesntExist(err) {
 		udisk := types.UserPersistentDisk{
 			User: user,
 			Disk: &types.PersistentDisk{
@@ -88,7 +87,6 @@ func (r *RequestHandler) initiateRequest(user *types.User, jobType string, reque
 	}
 
 	pod := types.NewPOD(user, jobType, requestMode, podConfig)
-	fmt.Println("Pod:", *pod)
 	return r.pk.InitPOD(pod), nil
 }
 
@@ -101,7 +99,6 @@ func (r *RequestHandler) processRequest(user *types.User, jobType string, cmd st
 	}
 
 	pod, err = r.pk.CreatePOD(pod)
-	fmt.Println("pod: ", pod)
 
 	return pod, nil
 }

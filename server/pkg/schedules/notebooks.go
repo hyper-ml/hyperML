@@ -54,7 +54,6 @@ func NewNotebookScheduler(q *qs.QueryServer, keeper *pods.Keeper, config *config
 	active := make(map[uint64]interface{})
 
 	schConfig := config.GetNbScheduler()
-	fmt.Println("nb job config:", config.GetJobs())
 
 	nbs := NotebookScheduler{
 		concurrency:    schConfig.Concurrency,
@@ -72,7 +71,7 @@ func NewNotebookScheduler(q *qs.QueryServer, keeper *pods.Keeper, config *config
 	nbs.checkrun = make(chan int)
 
 	if keeper != nil {
-		fmt.Println("Running Notebook Scheduler Daemon")
+		base.Out("Running Notebook Scheduler Daemon")
 		go nbs.run()
 	} else {
 		base.Warn("Schedule Sweeper not initiated as k8s is not reachable ")
@@ -250,8 +249,7 @@ func (nb *NotebookScheduler) run() {
 				continue
 			}
 
-			fmt.Println("[NB Scheduler POD changed] -> ")
-			fmt.Println(event)
+			base.Log("[NB Scheduler POD changed] -> ", event)
 			pod, ok := event.(*types.POD)
 
 			if !ok {
@@ -285,7 +283,6 @@ func (nb *NotebookScheduler) run() {
 			}
 
 		case <-nb.podShutdown:
-			fmt.Println("NB Scheduler: Received POD shutdown signal")
 			// call the method to pick next one in the pending
 			// and launch if concurrency condition is met
 			nb.checkAndStart()
@@ -408,7 +405,7 @@ func (nb *NotebookScheduler) checkAndStart() {
 // ScheduleRequest : Adds notebook request in the queue
 func (nb *NotebookScheduler) ScheduleRequest(user *types.User, pod *types.POD) (*types.POD, error) {
 	var err error
-	fmt.Println("Pod:", pod)
+
 	pod.SetRequestMode(types.PodReqModeBck)
 	pod.SetStatus(types.PodReqScheduled, nil)
 

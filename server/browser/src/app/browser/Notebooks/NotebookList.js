@@ -52,11 +52,14 @@ export class NotebookList extends React.Component {
         
         const { visibleNotebooks } = this.props
 
-        if (!visibleNotebooks || visibleNotebooks.length === 0) {
-            return <div className="nb-list"> <p> You currently have no notebooks. </p> </div>
+        if (!visibleNotebooks ) {
+            if (visibleNotebooks.length === 0) {
+                return <div className="nb-list"> <p> You currently have no notebooks. </p> </div>;
+            } 
+            if (visibleNotebooks.error) {
+                return <div className="nb-list"> <p>An error has occurred. Reason: {visibleNotebooks.reason}</p></div>;
+            }
         }
-
-        console.log('visibleNotebooks:', visibleNotebooks)
         
         return (
             <div className="nb-list">

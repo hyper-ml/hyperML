@@ -2,7 +2,6 @@ package schedules
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/hyper-ml/hyperml/server/pkg/qs"
 )
 
@@ -25,7 +24,6 @@ func (qh *qHandler) UpsertSchedulerQueues(nbs *NotebookScheduler) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("writing scheduler queue:", NbSchedulerKey, data)
 	return qh.Upsert(NbSchedulerKey, data)
 }
 

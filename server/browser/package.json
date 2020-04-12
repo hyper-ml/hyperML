@@ -55,8 +55,6 @@
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-core": "^6.26.3",
-    "babel-jest": "^22.1.0",
-    "babel-loader": "^7.1.2",
     "babel-plugin-syntax-object-rest-spread": "^6.13.0",
     "babel-plugin-transform-object-rest-spread": "^6.8.0",
     "babel-polyfill": "^6.23.0",
@@ -66,9 +64,6 @@
     "glob-all": "^3.2.1",
     "css-loader": "^0.23.1",
     "style-loader": "^0.13.1",
-    "purgecss-webpack-plugin": "^2.1.2",
-    "webpack": "^4.42.1",
-    "webpack-cli": "^3.2.0",
-    "webpack-dev-server": "^3.1.14"
+    "purgecss-webpack-plugin": "^2.1.2"
   }
 }

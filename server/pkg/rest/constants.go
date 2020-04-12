@@ -1,5 +1,7 @@
 package rest
 
 const (
-	nullString = ""
+	nullString  = ""
+	browserPath = "/"
+	apiPath     = "/api/v1"
 )

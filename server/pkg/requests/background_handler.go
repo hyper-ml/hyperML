@@ -27,14 +27,12 @@ func (r *RequestHandler) GetBckNotebook(user *types.User, podID uint64) (*types.
 
 // GetBckNotebookStatus : Syncs status with K8s before returning POD Info
 func (r *RequestHandler) GetBckNotebookStatus(user *types.User, podID uint64) (*types.POD, error) {
-	fmt.Println("GetBckNotebookStatus: ")
 	pod, err := r.getPodByUser(user, podID)
 	if err != nil || pod == nil {
 		return nil, nil
 	}
 
 	if !pod.IsDone() {
-		fmt.Println("Is not done")
 		return r.pk.SyncUserJob(pod.PodType, pod.ID)
 	}
 

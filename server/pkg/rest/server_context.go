@@ -53,7 +53,7 @@ func NewServerContext(config *constants.Config) (*ServerContext, error) {
 	}
 
 	if config.GetBool(constants.Safemode) {
-		fmt.Println("Starting in safemode. k8s Errors will be ignored ")
+		base.Out("Starting in safemode. k8s Errors will be ignored ")
 	}
 
 	sc.DBContext, err = db.NewDatabaseContext(config.DB)

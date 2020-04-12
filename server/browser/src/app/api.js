@@ -96,6 +96,7 @@ class API {
     }
 }
 
-const api = new API("http://localhost:8888/");
+const api = new API(`${window.location.protocol}//${window.location.host}`)
+//"http://localhost:3000/"
 
 export default api; 

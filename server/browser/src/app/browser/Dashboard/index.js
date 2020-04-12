@@ -126,6 +126,14 @@ export class Dashboard extends React.Component {
         );
     }
 
+    renderSettings() {
+        return (
+            <Tab style={{padding: '1em'}} eventKey="settings" title="Settings">
+                <p> No settings yet. </p>
+            </Tab>
+        )
+    }
+
     
     render() {
         const {activeTab} = this.state;
@@ -137,12 +145,9 @@ export class Dashboard extends React.Component {
                 onSelect={k => this.setActiveTab(k)}>
                 {this.renderNotebooks()}
                 {this.renderNewNotebook()}
-                {this.renderSavedNotebooks()}
                 {this.renderJobs()}
-                {/*this.renderStorage()*/}
-                {this.renderDStore()}
-                {this.renderBrowse()}
-                
+                {this.renderSettings()}
+
             </Tabs>
         </div>
     }

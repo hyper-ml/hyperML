@@ -1,5 +1,8 @@
 package types
 
+// GuestUserName : Guest user name used in server auth is disabled
+const GuestUserName = "admin"
+
 // UserStatus : User status message
 type UserStatus string
 

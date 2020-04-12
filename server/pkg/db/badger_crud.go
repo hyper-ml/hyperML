@@ -50,11 +50,24 @@ func (b *BadgerContext) GetSequence(kind string, cache uint64) (uint64, error) {
 	return 0, fmt.Errorf("Failed to get sequence")
 }
 
+// InsertIndex : data insert index
+func (b *BadgerContext) InsertIndex(key string) error {
+
+	if b.KeyExists(key) {
+		return nil
+	}
+
+	var body []byte
+	return b.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(key), body)
+	})
+}
+
 // Insert : data insert routine
 func (b *BadgerContext) Insert(key string, value interface{}) error {
 
 	if b.KeyExists(key) {
-		return fmt.Errorf("[DB.Insert] key already exists in database: %s", key)
+		return fmt.Errorf("key already exists")
 	}
 
 	k := []byte(key)

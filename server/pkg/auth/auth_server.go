@@ -2,21 +2,28 @@ package auth
 
 import (
 	"fmt"
+	"github.com/hyper-ml/hyperml/server/pkg/base"
 	"github.com/hyper-ml/hyperml/server/pkg/qs"
-	"github.com/hyper-ml/hyperml/server/pkg/requests"
 	"github.com/hyper-ml/hyperml/server/pkg/types"
 )
 
+// APIKeyLength : API Key length
+const APIKeyLength = 32
+
 // Server : Manage Authorization
 type Server interface {
+
+	// Returns TRUE if auth is enabled.
+	IsAuthEnabled() bool
 
 	// CLI
 	CreateUser(name, email, password string) (*types.UserAttrs, error)
 	CreateTypedUser(usertype types.UserType, name, email, plainpass string) (*types.UserAttrs, error)
 	DisableUser(username string) error
 	EnableUser(username string) error
-	ShowUser(username string) (*types.UserAttrs, error)
-
+	GetUser(username string) (*types.UserAttrs, error)
+	GetUserByAPIKey(apiKey string) (*types.UserAttrs, error)
+	GetGuestUser() (*types.UserAttrs, error)
 	// Web
 	CreateJWT(name, txtPassword string) (jwtToken string, userAttrs *types.UserAttrs, fnError error)
 	CreateAndLoginUser(name, email, password string) (*types.SessionAttrs, *types.UserAttrs, error)
@@ -27,16 +34,20 @@ type Server interface {
 type authServer struct {
 	noAuth bool
 	sqs    *sessionQueryServer
-	udh    *requests.UserDataStore
+	udh    *qs.QueryServer
 }
 
 // NewAuthServer : Returns new auth server object
 func NewAuthServer(q *qs.QueryServer, noAuth bool) Server {
 	return &authServer{
 		sqs:    newSessionQueryServer(q),
-		udh:    requests.NewUserDataStore(q),
+		udh:    q,
 		noAuth: noAuth,
 	}
+}
+
+func (a *authServer) IsAuthEnabled() bool {
+	return !a.noAuth
 }
 
 func (a *authServer) CreateUser(name, email, txtPassword string) (*types.UserAttrs, error) {
@@ -64,6 +75,7 @@ func (a *authServer) CreateTypedUser(usertype types.UserType, name, email, plain
 		Type:         types.UserType(usertype),
 		Email:        email,
 		PasswordHash: hash,
+		APIKey:       base.FixedRandomString(APIKeyLength),
 	}
 
 	userAttrs = a.validateUser(userAttrs)
@@ -74,6 +86,16 @@ func (a *authServer) CreateTypedUser(usertype types.UserType, name, email, plain
 	}
 
 	return a.udh.GetUserAttrs(name)
+}
+
+func (a *authServer) AssignNewAPIKey(name string) (*types.UserAttrs, error) {
+	userAttrs, err := a.udh.GetUserAttrs(name)
+	if err != nil {
+		return nil, err
+	}
+
+	userAttrs.APIKey = base.FixedRandomString(APIKeyLength)
+	return a.udh.UpdateUserAttrs(name, userAttrs)
 }
 
 // validateUser :
@@ -88,7 +110,6 @@ func (a *authServer) CreateJWT(name, txtPassword string) (jwtToken string, userA
 	userAttrs, err := a.udh.GetUserAttrs(name)
 
 	if err != nil {
-		fmt.Println("[authServer.CreateSession] User get error: ", err)
 		if IsNoDataFoundErr(err) {
 			fnError = fmt.Errorf("User does not exist")
 			return
@@ -123,8 +144,6 @@ func (a *authServer) CreateJWT(name, txtPassword string) (jwtToken string, userA
 
 func (a *authServer) SaveSession(jwt string, userAttrs *types.UserAttrs) (*types.SessionAttrs, error) {
 	id, err := a.sqs.NewSessionID()
-
-	fmt.Println("session ID:", id)
 
 	if err != nil {
 		return nil, err
@@ -180,7 +199,15 @@ func (a *authServer) EnableUser(username string) error {
 	return fmt.Errorf("unimplemeted")
 }
 
-// ShowUser : Returns user record
-func (a *authServer) ShowUser(username string) (*types.UserAttrs, error) {
-	return nil, fmt.Errorf("unimplemeted")
+// GetUser : Returns user record
+func (a *authServer) GetUser(username string) (*types.UserAttrs, error) {
+	return a.udh.GetUserAttrs(username)
+}
+
+func (a *authServer) GetGuestUser() (*types.UserAttrs, error) {
+	return a.GetUser(types.GuestUserName)
+}
+
+func (a *authServer) GetUserByAPIKey(apiKey string) (*types.UserAttrs, error) {
+	return a.udh.GetUserByAPIKey(apiKey)
 }

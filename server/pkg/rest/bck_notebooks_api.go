@@ -2,7 +2,6 @@ package rest
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/hyper-ml/hyperml/server/pkg/base"
 	"github.com/hyper-ml/hyperml/server/pkg/types"
 	"io/ioutil"
@@ -13,10 +12,6 @@ import (
 func (h *Handler) handleNewBckNotebook() (fnerr error) {
 	var err error
 	var nbreq NotebookInfo
-
-	defer func() {
-		fmt.Println("err:", fnerr)
-	}()
 
 	if err := ValidateMethod(h.rq.Method, "POST"); err != nil {
 		return err
@@ -90,7 +85,6 @@ func (h *Handler) handleGetBckNotebook() error {
 
 	nbInstance, err := h.server.usrReq.GetBckNotebook(sessionUser, nbid)
 	if err != nil {
-		fmt.Println("Failed to get Notebook:", err)
 		return err
 	}
 
@@ -128,7 +122,6 @@ func (h *Handler) handleGetBckNotebookStatus() error {
 	nbInstance, err := h.server.usrReq.GetBckNotebookStatus(sessionUser, nbid)
 
 	if err != nil {
-		fmt.Println("Failed to get Notebook:", err)
 		return err
 	}
 
@@ -170,7 +163,6 @@ func (h *Handler) handleStopBckNotebook() error {
 
 	nbInstance, err := h.server.usrReq.StopBckNotebook(sessionUser, nbid)
 	if err != nil {
-		fmt.Println("Failed to stop Notebook:", err)
 		return err
 	}
 

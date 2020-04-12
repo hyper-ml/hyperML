@@ -75,7 +75,6 @@ func (h *Handler) handleGetTaskLog() error {
 	rs, err := h.server.logAPI.ReadSeeker(logPath, 0, 0)
 	if err != nil {
 		if err != io.EOF {
-			fmt.Println("Failed to fetch log from :", logPath)
 			return base.HTTPErrorf(http.StatusBadRequest, "Error occurred while fetching log object.")
 		}
 	}

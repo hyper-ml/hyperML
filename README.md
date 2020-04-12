@@ -44,10 +44,13 @@ A host of quick start configuration guides are available on hyperML [website](ht
 
 
 ## Documentation
-A comprehensive documentation is available [here](https://www.hyperml.com/docs/introduction) link
+A comprehensive documentation is available [here](https://www.hyperml.com/docs/introduction) link  
+
+
 
 ## Problems?
-If you have a question or are looking for guidance, we recommend opening an issue so a member of the community can help!
+If you have a question or are looking for guidance, we recommend opening an issue so a member of the community can help!  
+
 
 
 ## Professional Support

@@ -49,9 +49,12 @@ A comprehensive documentation is available [here](https://www.hyperml.com/docs/i
 ## Problems?
 If you have a question or are looking for guidance, we recommend opening an issue so a member of the community can help!
 
+
+## Professional Support
+Please write to [us](mailto:amol@hyperml.com).
+
 ## Author
 Amol Umbarkar (email: amol@hyperml.com / [twitter](https://twitter.com/_4mol))
-
 
 
 

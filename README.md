@@ -15,6 +15,7 @@ Demo Links:
 * Scale ML experiments by effortlessly launching new notebooks or scheduling them to run in background
 * Share infrastructure resources especially when there is shortage of it 
 * Hassle free environments through container images
+* Deploy models to containers with a single command (coming soon)
 
 
 ## Requirements

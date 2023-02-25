@@ -11,7 +11,6 @@ require (
 	github.com/dgraph-io/badger v1.5.4
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-farm v0.0.0-20190104051053-3adb47b1fb0f // indirect
-	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-ini/ini v1.38.3 // indirect
 	github.com/google/gofuzz v0.0.0-20161122191042-44d81051d367 // indirect
@@ -40,7 +39,7 @@ require (
 	golang.org/x/net v0.0.0-20190522155817-f3200d17e092
 	golang.org/x/oauth2 v0.0.0-20181003184128-c57b0facaced
 	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4
-	golang.org/x/sys v0.0.0-20190221075227-b4e8571b14e0 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	google.golang.org/api v0.0.0-20181010000435-ce4acf611b39
 	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20181004005441-af9cb2a35e7f // indirect
